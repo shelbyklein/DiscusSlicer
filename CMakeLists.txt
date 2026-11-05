@@ -174,6 +174,10 @@ set(ORCA_BUNDLE_ID   "com.orcaslicer.OrcaSlicer")
 set(ORCA_BUNDLE_NAME "OrcaSlicer")
 if (DISCUS_SLICER)
     add_definitions(-DDISCUS_SLICER)
+    # DiscusSlicer's own version, shown on the splash screen, in About and in Finder. SoftFever_VERSION
+    # stays the upstream version because 3MF projects, profiles and update checks depend on it.
+    set(DISCUS_VERSION "1.0.2")
+    add_definitions(-DDISCUS_VERSION="${DISCUS_VERSION}")
     set(ORCA_BUNDLE_ID   "com.shelbyklein.DiscusSlicer")
     set(ORCA_BUNDLE_NAME "DiscusSlicer")
     # Comment out CFBundleURLTypes in the Info.plist so orcaslicer:// links go to stock OrcaSlicer.

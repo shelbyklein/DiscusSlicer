@@ -6102,7 +6102,11 @@ std::string GUI_App::format_display_version()
 {
     if (!version_display.empty()) return version_display;
 
+#ifdef DISCUS_SLICER
+    version_display = DISCUS_VERSION;
+#else
     version_display = SoftFever_VERSION;
+#endif
     return version_display;
 }
 
