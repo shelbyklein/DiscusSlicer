@@ -266,14 +266,7 @@ static wxString print_plate_label()
     return _L("Print plate");
 }
 
-static wxString print_all_label()
-{
-#ifdef DISCUS_SLICER
-    if (wxGetApp().preset_bundle && wxGetApp().preset_bundle->use_bbl_network())
-        return _L("Add all to library");
-#endif
-    return _L("Print all");
-}
+static wxString print_all_label() { return _L("Print all"); }
 
 // Full text of the shortened Spoolside labels, for the tooltip.
 static wxString print_tooltip(const wxString &label)
@@ -281,8 +274,6 @@ static wxString print_tooltip(const wxString &label)
 #ifdef DISCUS_SLICER
     if (label == _L("Add to library"))
         return _L("Add to Spoolside library");
-    if (label == _L("Add all to library"))
-        return _L("Add all plates to Spoolside library");
 #endif
     return {};
 }
@@ -2130,7 +2121,6 @@ wxBoxSizer* MainFrame::create_side_tools()
 
                 SideButton* print_all_btn = new SideButton(p, print_all_label(), "");
                 print_all_btn->SetCornerRadius(0);
-                print_all_btn->SetToolTip(print_tooltip(print_all_label())); // DiscusSlicer
                 print_all_btn->Bind(wxEVT_BUTTON, [this, p](wxCommandEvent&) {
                     m_print_btn->SetLabel(print_all_label());
                     m_print_select = ePrintAll;
@@ -2191,7 +2181,10 @@ wxBoxSizer* MainFrame::create_side_tools()
                     if (preset_bundle->use_bbl_network()) {
                         // BBL network support everything
 #ifdef DISCUS_SLICER
-                        support_send = false; // Send and Send all would upload to Spoolside just like Print plate and Print all
+                        // Send would add to the Spoolside library just like Print plate, and a library entry holds
+                        // one plate (linked to that plate's assets), so neither Send nor Print all is offered.
+                        support_send      = false;
+                        support_print_all = false;
 #endif
                     } else {
                         support_send = false; // All 3rd print hosts do not have the send options

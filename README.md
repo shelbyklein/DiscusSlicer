@@ -15,18 +15,39 @@ which defines the `DISCUS_SLICER` macro. Search for `DISCUS_SLICER` to find ever
   OrcaSlicer then runs exactly as it does for users who never installed the plug-in.
 - **No Device tab for Bambu printers.** `PresetBundle::use_bbl_device_tab()` is false, so Bambu printers get the web view
   that other printers use, pointed at Spoolside's printers page. No camera, MQTT, cloud login or direct printer sending.
-- **Print / Send adds the plate to the Spoolside library.** The Spoolside library is a curated set of finished prints, and
-  Spoolside decides which printer runs them. For Bambu printers the print button reads "Add to library" / "Add all to
-  library" (tooltip: "Add to Spoolside library" / "Add all plates to Spoolside library"); the duplicate Send / Send all
-  entries are hidden. It asks for the **library name** (default: the project name, plus the plate name if the plate has
-  one; the first object's name for an untitled project) and the **library** (PlayCase or Personal, default from
-  Preferences), writes the same `.gcode.3mf` as "Export plate sliced file" and uploads it to `POST /api/library`
-  (`src/slic3r/GUI/SpoolsideUpload.cpp`, `Plater::send_to_spoolside`). Spoolside names the entry after the
-  `x-file-name` header minus `.gcode.3mf`, so the file is sent as `<name>.gcode.3mf`; uploading a name that already
-  exists in that library updates the entry and keeps its linked assets and quantities. "Add all" uploads each sliced plate
-  as its own file named `<name> – <plate name>` (or `– Plate N`), because Spoolside would otherwise split a multi-plate
-  file and name the parts after their objects. Afterwards a confirmation says what was added or updated, with an
-  "Open in Spoolside" button (the Sliced prints page, or Personal); nothing opens on its own.
+- **Print / Send adds the plate, and its models, to Spoolside.** The Spoolside library is a curated set of finished
+  prints, and Spoolside decides which printer runs them. For Bambu printers the print button reads "Add to library"
+  (tooltip: "Add to Spoolside library"); Print all, Send and Send all are hidden, so only the current plate can be added.
+  The dialog (`src/slic3r/GUI/SpoolsideUpload.cpp`, `Plater::send_to_spoolside`) asks for:
+  - the **library name** (default: the project name, plus the plate name if the plate has one; the first object's name
+    for an untitled project) and the **library** (PlayCase or Personal, default from Preferences);
+  - for **each object on the plate**: *Update existing asset* (a list of Spoolside's assets from `GET /api/assets`,
+    phones left out, preselected when the asset's name or its source file name matches the object's name), *Add as new
+    asset* (name, Case/Faceplate/Sleeve/Part, Gen 3/4), or *Don't upload*. Objects with no matching asset default to
+    *Don't upload*.
+
+  Then, in order: each chosen object goes up as a binary STL to `POST /api/assets` (`x-asset` header: URL-encoded JSON).
+  An update re-sends the asset's own fields and `source`, so Spoolside replaces that asset's STL and keeps its name,
+  status and notes. A new asset gets the source `discusslicer/<name>.stl`, so adding the same name again updates it
+  instead of making a duplicate (a source deleted in Spoolside is refused, as for the Dropbox import). Next the plate's
+  `.gcode.3mf` (the same file as "Export plate sliced file") goes to `POST /api/library`, named `<name>.gcode.3mf`;
+  a name that already exists in that library updates the entry. Finally `PATCH /api/library/:id {plate, assetIds}`
+  links the plate to those assets (with their new STL hashes). If no object is uploaded, the entry's existing links
+  are left alone. A confirmation lists the entry and each asset added or updated, with an "Open in Spoolside" button.
+
+  **STL coordinates.** The STL is the object as designed, not as placed: only model parts are merged (no modifiers,
+  negative volumes or support blockers), and the plate position, rotation and scale of the instance are left out.
+  Each part loaded from a file goes back to where it sat in that file (`ModelVolume::source.mesh_offset`, the centre
+  Orca removed on import, which 3MF projects keep), with its own scale and rotation inside the object. So an updated
+  asset keeps the origin of its original STL, and Spoolside assemblies, which place parts by STL coordinates, stay
+  aligned. Parts not loaded from a file (shapes, text) keep their place in the object.
+
+  **Dropbox import caveat.** Assets imported from Dropbox have their Dropbox path as source (e.g.
+  `Cases/12/iPhone 12 Phone Case.stl`). Spoolside's `scripts/import-assets.mjs` is run by hand, not on a schedule, but
+  each run re-posts every Dropbox STL with its path as source and so replaces the STL of that asset, including one
+  updated from DiscusSlicer. The dialog says so under such an asset. To avoid it, either save the new STL into Dropbox
+  as well, or Spoolside's import would need to skip assets whose STL was last replaced by something other than the
+  import (for example by recording the hash it last imported and skipping when the current hash differs).
   Server URL, default library and API key are under Preferences > Online > Spoolside. The key is kept in
   the macOS Keychain (service `DiscusSlicer/Spoolside`). Keys are made by a script inside Spoolside's container on the Beelink:
   ```sh

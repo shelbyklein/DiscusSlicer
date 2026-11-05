@@ -10240,7 +10240,7 @@ void Plater::priv::on_action_print_plate(SimpleEvent&)
     PresetBundle& preset_bundle = *wxGetApp().preset_bundle;
     if (preset_bundle.use_bbl_network()) {
 #ifdef DISCUS_SLICER
-        q->send_to_spoolside(PLATE_CURRENT_IDX);
+        q->send_to_spoolside();
 #else
         // BBS
         if (!m_select_machine_dlg)
@@ -10257,7 +10257,7 @@ void Plater::priv::on_action_print_plate(SimpleEvent&)
 void Plater::priv::on_action_send_to_multi_machine(SimpleEvent&)
 {
 #ifdef DISCUS_SLICER
-    q->send_to_spoolside(PLATE_CURRENT_IDX);
+    q->send_to_spoolside();
     return;
 #endif
     if (!m_send_multi_dlg)
@@ -10324,7 +10324,7 @@ int Plater::priv::update_print_required_data(Slic3r::DynamicPrintConfig config, 
 void Plater::priv::on_action_send_to_printer(bool isall)
 {
 #ifdef DISCUS_SLICER
-    q->send_to_spoolside(isall ? PLATE_ALL_IDX : PLATE_CURRENT_IDX);
+    q->send_to_spoolside(); // one plate at a time; "Send all" is hidden for Bambu printers
     return;
 #endif
 	if (!m_send_to_sdcard_dlg) m_send_to_sdcard_dlg = new SendToPrinterDialog(q);
@@ -10356,7 +10356,7 @@ void Plater::priv::on_action_print_all(SimpleEvent&)
     PresetBundle& preset_bundle = *wxGetApp().preset_bundle;
     if (preset_bundle.use_bbl_network()) {
 #ifdef DISCUS_SLICER
-        q->send_to_spoolside(PLATE_ALL_IDX);
+        q->send_to_spoolside(); // one plate at a time; "Print all" is hidden for Bambu printers
 #else
         // BBS
         if (!m_select_machine_dlg)
@@ -14993,10 +14993,36 @@ void Plater::send_to_printer(bool isall)
 }
 
 #ifdef DISCUS_SLICER
-// Adds the sliced plate (or every sliced plate) to the Spoolside print library under a name chosen in a dialog.
-// Each plate is written like "Export plate sliced file" and uploaded as its own single-plate file: Spoolside would
-// split a multi-plate file itself and name the parts after their objects, not after the chosen name.
-void Plater::send_to_spoolside(int plate_idx)
+// The STL of an object for Spoolside's asset library: the object as designed, not as placed on the plate. Only its
+// model parts are merged (no modifiers, negative volumes or support blockers), and the instance's position, rotation
+// and scale on the plate are left out. A part loaded from a file goes back to where it sat in that file: Orca centres
+// each loaded mesh and keeps the removed offset in source.mesh_offset, so an updated asset keeps its original origin
+// and Spoolside assemblies, which place parts by their STL coordinates, stay aligned. The part's own scale and
+// rotation inside the object are kept. Parts not loaded from a file (shapes, text) keep their place in the object.
+static TriangleMesh spoolside_asset_mesh(const ModelObject& object)
+{
+    TriangleMesh out;
+    for (const ModelVolume* v : object.volumes) {
+        if (!v->is_model_part())
+            continue;
+        TriangleMesh mesh = v->mesh();
+        if (v->source.input_file.empty()) {
+            mesh.transform(v->get_matrix(), true);
+            mesh.translate(-object.origin_translation.cast<float>());
+        } else {
+            mesh.translate(-mesh.bounding_box().center().cast<float>());
+            mesh.transform(v->get_matrix_no_offset(), true);
+            mesh.translate(v->source.mesh_offset.cast<float>());
+        }
+        out.merge(mesh);
+    }
+    return out;
+}
+
+// Adds the sliced current plate to the Spoolside print library, and the STLs of its objects to Spoolside's assets,
+// as chosen in a dialog. The plate is written like "Export plate sliced file". Only one plate at a time: each library
+// entry is linked to the assets of one plate.
+void Plater::send_to_spoolside()
 {
     if (p->model.objects.empty())
         return;
@@ -15012,51 +15038,45 @@ void Plater::send_to_spoolside(int plate_idx)
         return;
     }
 
-    PartPlateList& plates = get_partplate_list();
-    std::vector<int> indices;
-    if (plate_idx == PLATE_ALL_IDX) {
-        for (int i = 0; i < plates.get_plate_count(); ++i)
-            if (plates.get_plate(i)->is_slice_result_ready_for_export())
-                indices.push_back(i);
-    } else
-        indices.push_back(plate_idx == PLATE_CURRENT_IDX ? plates.get_curr_plate_index() : plate_idx);
-    if (indices.empty()) {
-        show_error(this, _L("There are no sliced plates to add."), false);
-        return;
-    }
+    PartPlateList& plates    = get_partplate_list();
+    const int      plate_idx = plates.get_curr_plate_index();
+    PartPlate*     plate     = plates.get_plate(plate_idx);
 
-    auto plate_name = [&plates](int i) { return from_u8(plates.get_plate(i)->get_plate_name()).Trim().Trim(false); };
     wxString name = get_project_name();
     if (name == _L("Untitled") || name.empty())
         name = from_u8(fs::path(p->model.objects.front()->name).stem().string());
-    if (plate_idx != PLATE_ALL_IDX && !plate_name(indices.front()).empty())
-        name += wxString::FromUTF8(" \xE2\x80\x93 ") + plate_name(indices.front());
+    const wxString plate_name = from_u8(plate->get_plate_name()).Trim().Trim(false);
+    if (!plate_name.empty())
+        name += wxString::FromUTF8(" \xE2\x80\x93 ") + plate_name;
+
+    // Each object once, however many of its instances are on the plate.
+    ModelObjectPtrs             objects;
+    std::vector<SpoolsideAsset> assets;
+    for (ModelObject* object : plate->get_objects_on_this_plate())
+        if (std::find(objects.begin(), objects.end(), object) == objects.end()) {
+            objects.push_back(object);
+            assets.push_back({object->name});
+        }
 
     std::string scope;
-    if (!spoolside_add_dialog(this, int(indices.size()), name, scope))
+    if (!spoolside_add_dialog(this, name, scope, assets))
         return;
 
-    std::vector<SpoolsidePrint> prints;
-    bool written = true;
-    for (int i : indices) {
-        wxString entry = name;
-        if (indices.size() > 1) {
-            const wxString plate = plate_name(i);
-            entry += wxString::FromUTF8(" \xE2\x80\x93 ") + (plate.empty() ? wxString::Format(_L("Plate %d"), i + 1) : plate);
+    std::vector<fs::path> files{fs::temp_directory_path() / fs::unique_path("discus-%%%%-%%%%.gcode.3mf")};
+    bool written = export_3mf(files.front(), SaveStrategy::Silence | SaveStrategy::SplitModel | SaveStrategy::WithGcode | SaveStrategy::SkipModel, plate_idx) >= 0;
+    for (size_t i = 0; written && i < assets.size(); ++i)
+        if (assets[i].upload) {
+            assets[i].stl = files.emplace_back(fs::temp_directory_path() / fs::unique_path("discus-%%%%-%%%%.stl"));
+            TriangleMesh mesh = spoolside_asset_mesh(*objects[i]);
+            written = !mesh.empty() && store_stl(assets[i].stl.string().c_str(), &mesh, true);
         }
-        const fs::path file = fs::temp_directory_path() / fs::unique_path("discus-%%%%-%%%%.gcode.3mf");
-        prints.push_back({file, into_u8(entry)});
-        if (export_3mf(file, SaveStrategy::Silence | SaveStrategy::SplitModel | SaveStrategy::WithGcode | SaveStrategy::SkipModel, i) < 0) {
-            show_error(this, _L("Could not write the sliced file."), false);
-            written = false;
-            break;
-        }
-    }
     if (written)
-        spoolside_upload(this, prints, scope);
-    for (const SpoolsidePrint& print : prints) {
+        spoolside_upload(this, files.front(), into_u8(name), scope, assets);
+    else
+        show_error(this, _L("Could not write the files to upload."), false);
+    for (const fs::path& file : files) {
         boost::system::error_code ec;
-        fs::remove(print.file, ec);
+        fs::remove(file, ec);
     }
 }
 #endif

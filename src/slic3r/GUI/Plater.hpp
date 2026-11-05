@@ -486,7 +486,7 @@ public:
     void export_gcode(bool prefer_removable);
     void export_gcode_3mf(bool export_all = false);
 #ifdef DISCUS_SLICER
-    void send_to_spoolside(int plate_idx);
+    void send_to_spoolside();
 #endif
     void send_gcode_finish(wxString name);
     void export_core_3mf();
