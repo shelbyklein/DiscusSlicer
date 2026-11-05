@@ -85,6 +85,10 @@ else ()
 endif ()
 
 find_package(Git)
+# DiscusSlicer: never load the Bambu network plug-in, hand sliced plates to Spoolside instead,
+# and install as a separate app (bundle id and data dir) next to stock OrcaSlicer. See README.md.
+option(DISCUS_SLICER     "Build DiscusSlicer (no Bambu network plug-in, Spoolside handoff)" ON)
+
 if(DEFINED ENV{git_commit_hash} AND NOT "$ENV{git_commit_hash}" STREQUAL "")
     message(STATUS "Specified git commit hash: $ENV{git_commit_hash}")
     if(GIT_FOUND AND EXISTS "${CMAKE_SOURCE_DIR}/.git")
@@ -99,7 +103,9 @@ if(DEFINED ENV{git_commit_hash} AND NOT "$ENV{git_commit_hash}" STREQUAL "")
         # No .git directory (e.g., Flatpak sandbox) — truncate directly
         string(SUBSTRING "$ENV{git_commit_hash}" 0 7 GIT_COMMIT_HASH)
     endif()
-    add_definitions("-DGIT_COMMIT_HASH=\"${GIT_COMMIT_HASH}\"")
+    if (NOT DISCUS_SLICER) # DiscusSlicer puts it in discus_build_info.h instead
+        add_definitions("-DGIT_COMMIT_HASH=\"${GIT_COMMIT_HASH}\"")
+    endif()
 elseif(GIT_FOUND AND EXISTS "${CMAKE_SOURCE_DIR}/.git")
     # Check current Git commit hash
     execute_process(
@@ -108,7 +114,9 @@ elseif(GIT_FOUND AND EXISTS "${CMAKE_SOURCE_DIR}/.git")
         OUTPUT_VARIABLE GIT_COMMIT_HASH
         OUTPUT_STRIP_TRAILING_WHITESPACE
     )
-    add_definitions("-DGIT_COMMIT_HASH=\"${GIT_COMMIT_HASH}\"")
+    if (NOT DISCUS_SLICER) # DiscusSlicer puts it in discus_build_info.h instead
+        add_definitions("-DGIT_COMMIT_HASH=\"${GIT_COMMIT_HASH}\"")
+    endif()
 endif()
 
 if(DEFINED ENV{SLIC3R_STATIC})
@@ -167,9 +175,6 @@ option(SLIC3R_BUILD_SANDBOXES   "Build development sandboxes" OFF)
 option(BUILD_TESTS       "Build unit tests" OFF)
 option(ORCA_TOOLS       "Build Orca tools" OFF)
 
-# DiscusSlicer: never load the Bambu network plug-in, hand sliced plates to Spoolside instead,
-# and install as a separate app (bundle id and data dir) next to stock OrcaSlicer. See README.md.
-option(DISCUS_SLICER     "Build DiscusSlicer (no Bambu network plug-in, Spoolside handoff)" ON)
 set(ORCA_BUNDLE_ID   "com.orcaslicer.OrcaSlicer")
 set(ORCA_BUNDLE_NAME "OrcaSlicer")
 if (DISCUS_SLICER)
@@ -177,7 +182,9 @@ if (DISCUS_SLICER)
     # DiscusSlicer's own version, shown on the splash screen, in About and in Finder. SoftFever_VERSION
     # stays the upstream version because 3MF projects, profiles and update checks depend on it.
     set(DISCUS_VERSION "1.0.2")
-    add_definitions(-DDISCUS_VERSION="${DISCUS_VERSION}")
+    # The version and commit go in a generated header, not in add_definitions(): a global definition that
+    # changes with every commit changes every compile command, so ccache would recompile all ~660 files.
+    configure_file(${CMAKE_SOURCE_DIR}/src/libslic3r/discus_build_info.h.in ${CMAKE_BINARY_DIR}/src/libslic3r/discus_build_info.h @ONLY)
     set(ORCA_BUNDLE_ID   "com.shelbyklein.DiscusSlicer")
     set(ORCA_BUNDLE_NAME "DiscusSlicer")
     # Comment out CFBundleURLTypes in the Info.plist so orcaslicer:// links go to stock OrcaSlicer.

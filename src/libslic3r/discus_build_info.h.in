@@ -1,0 +1,8 @@
+// DiscusSlicer: build details that change with every commit or release, kept out of the global compile
+// definitions so that ccache only recompiles the few files that include this (see CMakeLists.txt).
+#pragma once
+
+#define DISCUS_VERSION "@DISCUS_VERSION@"
+
+#undef GIT_COMMIT_HASH
+#define GIT_COMMIT_HASH "@GIT_COMMIT_HASH@"

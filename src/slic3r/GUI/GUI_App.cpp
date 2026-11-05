@@ -177,6 +177,10 @@ typedef BOOL (WINAPI *LPFN_ISWOW64PROCESS2)(
 #include "LinuxDisplayBackend.hpp"
 #endif
 
+#ifdef DISCUS_SLICER
+#include "discus_build_info.h"
+#endif
+
 // Needed for forcing menu icons back under gtk2 and gtk3
 #if defined(__WXGTK20__) || defined(__WXGTK3__)
     #include <gtk/gtk.h>

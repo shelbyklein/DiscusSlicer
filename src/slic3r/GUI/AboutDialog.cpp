@@ -11,6 +11,10 @@
 
 #include <wx/clipbrd.h>
 
+#ifdef DISCUS_SLICER
+#include "discus_build_info.h"
+#endif
+
 namespace Slic3r {
 namespace GUI {
 
