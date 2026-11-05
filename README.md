@@ -1,3 +1,59 @@
+# DiscusSlicer
+
+DiscusSlicer is a fork of OrcaSlicer for a farm of Bambu Lab printers that are run by [Spoolside](https://spoolside.shelbyklein.com).
+It exists because the closed-source Bambu network plug-in (`libbambu_networking`) crashes OrcaSlicer: a use-after-free in its
+MQTT client (`mqtt::async_client::remove_token` / `mqtt::token::on_success` on `MQTTAsync_receiveThread`) during connect and reconnect.
+
+## What differs from upstream
+
+Everything is behind one CMake option, `DISCUS_SLICER` (ON by default; `-DDISCUS_SLICER=OFF` builds stock OrcaSlicer),
+which defines the `DISCUS_SLICER` macro. Search for `DISCUS_SLICER` to find every change.
+
+- **The Bambu network plug-in is never loaded.** `BBLNetworkPlugin::initialize()` and `get_source_module()` return before
+  `dlopen`, so neither `libbambu_networking` nor `BambuSource` is ever opened. `installed_networking` is forced off in
+  `AppConfig`, and the plug-in download, install and update prompts and the Preferences plug-in settings are disabled.
+  OrcaSlicer then runs exactly as it does for users who never installed the plug-in.
+- **No Device tab for Bambu printers.** `PresetBundle::use_bbl_device_tab()` is false, so Bambu printers get the web view
+  that other printers use, pointed at Spoolside's printers page. No camera, MQTT, cloud login or direct printer sending.
+- **Print / Send hands off to Spoolside.** For Bambu printers, Print plate, Print all, Send and Send all write the same
+  `.gcode.3mf` as "Export plate sliced file", upload it to Spoolside's print library (`POST /api/library`), and open the
+  print in the browser, where Spoolside starts it (`src/slic3r/GUI/SpoolsideUpload.cpp`, `Plater::send_to_spoolside`).
+  Server URL, library (PlayCase or Personal) and API key are under Preferences > Online > Spoolside. The key is kept in
+  the macOS Keychain (service `DiscusSlicer/Spoolside`). Create one on the Spoolside server with
+  `node server/apikey.mjs create discusslicer`.
+- **Separate app.** Bundle id `com.shelbyklein.DiscusSlicer`, bundle name DiscusSlicer, and data folder
+  `~/Library/Application Support/DiscusSlicer`, so it never reads or changes stock OrcaSlicer's config.
+  `SLIC3R_APP_KEY` stays `OrcaSlicer` on purpose: 3MF metadata, G-code headers and translations depend on it.
+- **One-time preset import.** On first launch it offers to copy the user presets of `~/Library/Application Support/OrcaSlicer/user`
+  into its own `user/default` folder (every account folder is merged, newest file wins). OrcaSlicer's files are only read.
+
+## Building (macOS, Apple Silicon)
+
+```sh
+brew install cmake ninja automake autoconf libtool texinfo gettext
+export SDKROOT=$(xcrun --sdk macosx --show-sdk-path)   # GMP/MPFR configure fails without it
+./build_release_macos.sh -d -a arm64 -x                # dependencies, once
+./build_release_macos.sh -s -a arm64 -x                # the app: build/arm64/OrcaSlicer/OrcaSlicer.app
+ditto build/arm64/OrcaSlicer/OrcaSlicer.app /Applications/DiscusSlicer.app
+codesign --force --deep --sign - /Applications/DiscusSlicer.app
+```
+
+## Rebasing onto a new OrcaSlicer release
+
+The `discus` branch is upstream's release tag plus a few small commits.
+
+```sh
+git fetch upstream --tags
+git rebase --onto vX.Y.Z v2.4.2 discus   # replace v2.4.2 with the tag the branch is currently based on
+```
+
+Conflicts are usually in the guarded blocks of `GUI_App.cpp`, `Plater.cpp`, `Preferences.cpp` and `BBLNetworkPlugin.cpp`.
+After rebasing, check that nothing new calls `dlopen`/`LoadLibrary` for the plug-in (`grep -rn "dlopen\|initialize_network_module" src`)
+and that new BBL print or send entry points in `Plater.cpp` route to `send_to_spoolside`. Then build and confirm with
+`vmmap <pid> | grep -i bambu` that no plug-in library is mapped.
+
+---
+
 <div align="center">
 
 <picture>
