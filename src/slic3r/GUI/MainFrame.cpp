@@ -4234,6 +4234,10 @@ void MainFrame::load_printer_url()
 
     auto     cfg = preset_bundle.printers.get_edited_preset().config;
     wxString url = from_u8(PrintHost::get_print_host_webui(&cfg));
+#ifdef DISCUS_SLICER
+    if (url.empty() && preset_bundle.is_bbl_vendor()) // Spoolside runs the Bambu printers
+        url = from_u8(wxGetApp().app_config->get("spoolside_url") + "/printers");
+#endif
     wxString apikey;
     const auto host_type = cfg.option<ConfigOptionEnum<PrintHostType>>("host_type")->value;
     if (cfg.has("printhost_apikey") && (host_type == htPrusaLink || host_type == htPrusaConnect))

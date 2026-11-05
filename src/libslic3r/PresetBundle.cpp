@@ -651,6 +651,9 @@ bool PresetBundle::use_bbl_network()
 }
 
 bool PresetBundle::use_bbl_device_tab() {
+#ifdef DISCUS_SLICER
+    return false; // the BBL Device tab needs the network plug-in; DiscusSlicer shows Spoolside there instead
+#endif
     if (!is_bbl_vendor()) {
         return false;
     }

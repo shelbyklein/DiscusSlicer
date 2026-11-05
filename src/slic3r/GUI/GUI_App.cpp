@@ -1186,6 +1186,9 @@ static std::string decode(std::string const& extra, std::string const& path = {}
 
 int GUI_App::download_plugin(std::string name, std::string package_name, InstallProgressFn pro_fn, WasCancelledFn cancel_fn)
 {
+#ifdef DISCUS_SLICER
+    return -1; // DiscusSlicer never downloads, installs or offers the Bambu network plug-in
+#endif
     int result = 0;
     json j;
     std::string err_msg;
@@ -1353,6 +1356,9 @@ int GUI_App::download_plugin(std::string name, std::string package_name, Install
 
 int GUI_App::install_plugin(std::string name, std::string package_name, InstallProgressFn pro_fn, WasCancelledFn cancel_fn)
 {
+#ifdef DISCUS_SLICER
+    return -1; // DiscusSlicer never downloads, installs or offers the Bambu network plug-in
+#endif
     bool cancel = false;
     std::string target_file_path = (fs::temp_directory_path() / package_name).string();
 
@@ -1826,6 +1832,9 @@ bool GUI_App::has_network_update_available() const
 
 void GUI_App::show_network_plugin_download_dialog(bool is_update)
 {
+#ifdef DISCUS_SLICER
+    return; // DiscusSlicer never downloads, installs or offers the Bambu network plug-in
+#endif
     auto load_error = Slic3r::NetworkAgent::get_load_error();
 
     NetworkPluginDownloadDialog::Mode mode;
@@ -2378,7 +2387,12 @@ void GUI_App::init_webview_runtime()
 void GUI_App::init_app_config()
 {
 	// Profiles for the alpha are stored into the PrusaSlicer-alpha directory to not mix with the current release.
+#ifdef DISCUS_SLICER
+    // DiscusSlicer: own data dir, so stock OrcaSlicer's config (which still records the network plug-in) is never read.
+    SetAppName("DiscusSlicer");
+#else
     SetAppName(SLIC3R_APP_KEY);
+#endif
 //	SetAppName(SLIC3R_APP_KEY "-alpha");
 //  SetAppName(SLIC3R_APP_KEY "-beta");
 //	SetAppDisplayName(SLIC3R_APP_NAME);
@@ -2495,6 +2509,58 @@ bool GUI_App::check_older_app_config(Semver current_version, bool backup)
     //BBS: current no need these logic
     return false;
 }
+
+#ifdef DISCUS_SLICER
+// DiscusSlicer: offers once to copy the user presets of a stock OrcaSlicer install (only read, never changed).
+// Every Orca user folder (local and Bambu/Orca accounts) goes into the local "default" folder, because DiscusSlicer
+// has no Bambu login; when a file exists in several folders, the newest copy wins.
+static void offer_orca_preset_import(AppConfig &config, wxWindow *splash)
+{
+    if (config.get_bool("discus_orca_import_offered"))
+        return;
+    config.set_bool("discus_orca_import_offered", true);
+    config.save();
+
+    boost::system::error_code ec;
+    const fs::path orca_user = fs::path(data_dir()).parent_path() / "OrcaSlicer" / PRESET_USER_DIR;
+    if (!fs::is_directory(orca_user, ec))
+        return;
+
+    if (splash)
+        splash->Hide();
+    MessageDialog dlg(nullptr, _L("Copy your user presets from OrcaSlicer?\nThey are copied, not moved: OrcaSlicer is not changed."),
+                      _L("Import OrcaSlicer presets"), wxYES_NO | wxICON_QUESTION);
+    const bool do_import = dlg.ShowModal() == wxID_YES;
+    if (splash)
+        splash->Show();
+    if (!do_import)
+        return;
+
+    const fs::path target = fs::path(data_dir()) / PRESET_USER_DIR / DEFAULT_USER_FOLDER_NAME;
+    int copied = 0;
+    for (fs::directory_iterator account(orca_user, ec), end; !ec && account != end; account.increment(ec)) {
+        if (!fs::is_directory(account->path()))
+            continue;
+        boost::system::error_code walk_ec;
+        for (fs::recursive_directory_iterator it(account->path(), walk_ec), it_end; !walk_ec && it != it_end; it.increment(walk_ec)) {
+            if (!fs::is_regular_file(it->path()))
+                continue;
+            const fs::path dest = target / fs::relative(it->path(), account->path());
+            boost::system::error_code file_ec;
+            if (fs::exists(dest) && fs::last_write_time(dest) >= fs::last_write_time(it->path()))
+                continue;
+            fs::create_directories(dest.parent_path(), file_ec);
+            if (fs::copy_file(it->path(), dest, fs::copy_options::overwrite_existing, file_ec)) {
+                fs::last_write_time(dest, fs::last_write_time(it->path()), file_ec);
+                ++copied;
+            } else {
+                BOOST_LOG_TRIVIAL(error) << "Preset import: could not copy " << it->path().string() << ": " << file_ec.message();
+            }
+        }
+    }
+    BOOST_LOG_TRIVIAL(info) << "Preset import: copied " << copied << " files from " << orca_user.string();
+}
+#endif
 
 void GUI_App::copy_older_config()
 {
@@ -2895,6 +2961,10 @@ bool GUI_App::on_init_inner()
     // just checking for existence of Slic3r::data_dir is not enough : it may be an empty directory
     // supplied as argument to --datadir; in that case we should still run the wizard
     preset_bundle->setup_directories();
+#ifdef DISCUS_SLICER
+    if (is_editor())
+        offer_orca_preset_import(*app_config, scrn);
+#endif
 
 
     if (m_init_app_config_from_older)
@@ -4260,6 +4330,9 @@ if (res) {
 }
 
 void GUI_App::ShowDownNetPluginDlg() {
+#ifdef DISCUS_SLICER
+    return; // DiscusSlicer never downloads, installs or offers the Bambu network plug-in
+#endif
     try {
         auto iter = std::find_if(dialogStack.begin(), dialogStack.end(), [](auto dialog) {
             return dynamic_cast<DownloadProgressDialog *>(dialog) != nullptr;

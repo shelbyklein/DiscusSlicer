@@ -159,6 +159,9 @@
 
 #include "PhysicalPrinterDialog.hpp"
 #include "PrintHostDialogs.hpp"
+#ifdef DISCUS_SLICER
+#include "SpoolsideUpload.hpp"
+#endif
 #include "PlateSettingsDialog.hpp"
 #include "DailyTips.hpp"
 #include "CreatePresetsDialog.hpp"
@@ -2463,6 +2466,9 @@ void Sidebar::update_all_preset_comboboxes()
         p->m_bpButton_ams_filament->Show();
         //update print button default value for bbl or third-party printer
         p_mainframe->set_print_button_to_default(MainFrame::PrintSelectType::ePrintPlate);
+#ifdef DISCUS_SLICER
+        p_mainframe->load_printer_url();
+#endif
     } else {
         //p->btn_connect_printer->Show();
         p->m_printer_connect->Show();
@@ -10233,12 +10239,16 @@ void Plater::priv::on_action_print_plate(SimpleEvent&)
 
     PresetBundle& preset_bundle = *wxGetApp().preset_bundle;
     if (preset_bundle.use_bbl_network()) {
+#ifdef DISCUS_SLICER
+        q->send_to_spoolside(PLATE_CURRENT_IDX);
+#else
         // BBS
         if (!m_select_machine_dlg)
             m_select_machine_dlg = new SelectMachineDialog(q);
         m_select_machine_dlg->set_print_type(PrintFromType::FROM_NORMAL);
         m_select_machine_dlg->prepare(partplate_list.get_curr_plate_index());
         m_select_machine_dlg->ShowModal();
+#endif
     } else {
         q->send_gcode_legacy(PLATE_CURRENT_IDX, nullptr);
     }
@@ -10246,6 +10256,10 @@ void Plater::priv::on_action_print_plate(SimpleEvent&)
 
 void Plater::priv::on_action_send_to_multi_machine(SimpleEvent&)
 {
+#ifdef DISCUS_SLICER
+    q->send_to_spoolside(PLATE_CURRENT_IDX);
+    return;
+#endif
     if (!m_send_multi_dlg)
         m_send_multi_dlg = new SendMultiMachinePage(q);
     m_send_multi_dlg->prepare(partplate_list.get_curr_plate_index());
@@ -10258,6 +10272,9 @@ void Plater::priv::on_action_print_plate_from_sdcard(SimpleEvent&)
         BOOST_LOG_TRIVIAL(debug) << __FUNCTION__ << ":received print plate event\n";
     }
 
+#ifdef DISCUS_SLICER
+    return; // printing from the printer's SD card needs the network plug-in
+#endif
     //BBS
     if (!m_select_machine_dlg) m_select_machine_dlg = new SelectMachineDialog(q);
     m_select_machine_dlg->set_print_type(PrintFromType::FROM_SDCARD_VIEW);
@@ -10306,6 +10323,10 @@ int Plater::priv::update_print_required_data(Slic3r::DynamicPrintConfig config, 
 
 void Plater::priv::on_action_send_to_printer(bool isall)
 {
+#ifdef DISCUS_SLICER
+    q->send_to_spoolside(isall ? PLATE_ALL_IDX : PLATE_CURRENT_IDX);
+    return;
+#endif
 	if (!m_send_to_sdcard_dlg) m_send_to_sdcard_dlg = new SendToPrinterDialog(q);
     if (isall) {
         m_send_to_sdcard_dlg->prepare(PLATE_ALL_IDX);
@@ -10334,12 +10355,16 @@ void Plater::priv::on_action_print_all(SimpleEvent&)
 
     PresetBundle& preset_bundle = *wxGetApp().preset_bundle;
     if (preset_bundle.use_bbl_network()) {
+#ifdef DISCUS_SLICER
+        q->send_to_spoolside(PLATE_ALL_IDX);
+#else
         // BBS
         if (!m_select_machine_dlg)
             m_select_machine_dlg = new SelectMachineDialog(q);
         m_select_machine_dlg->set_print_type(PrintFromType::FROM_NORMAL);
         m_select_machine_dlg->prepare(PLATE_ALL_IDX);
         m_select_machine_dlg->ShowModal();
+#endif
     } else {
         q->send_gcode_legacy(PLATE_ALL_IDX, nullptr);
     }
@@ -14958,6 +14983,40 @@ void Plater::send_to_printer(bool isall)
 {
     p->on_action_send_to_printer(isall);
 }
+
+#ifdef DISCUS_SLICER
+// Writes the same file as "Export plate sliced file" to a temporary path and uploads it to Spoolside.
+void Plater::send_to_spoolside(int plate_idx)
+{
+    if (p->model.objects.empty())
+        return;
+
+    fs::path name;
+    try {
+        unsigned int state = this->p->update_restart_background_process(false, false);
+        if (state & priv::UPDATE_BACKGROUND_PROCESS_INVALID)
+            return;
+        name = fs::path(this->p->background_process.output_filepath_for_project(into_path(this->p->get_project_filename(".3mf")))).filename();
+    } catch (const Slic3r::PlaceholderParserError& ex) {
+        show_error(this, ex.what(), true);
+        return;
+    } catch (const std::exception& ex) {
+        show_error(this, ex.what(), false);
+        return;
+    }
+    name.replace_extension(".gcode.3mf");
+
+    const int export_plate_idx = plate_idx == PLATE_CURRENT_IDX ? get_partplate_list().get_curr_plate_index() : plate_idx;
+    const fs::path temp_file   = fs::temp_directory_path() / fs::unique_path("discus-%%%%-%%%%.gcode.3mf");
+    if (export_3mf(temp_file, SaveStrategy::Silence | SaveStrategy::SplitModel | SaveStrategy::WithGcode | SaveStrategy::SkipModel, export_plate_idx) < 0) {
+        show_error(this, _L("Could not write the sliced file."), false);
+    } else {
+        spoolside_upload(this, temp_file, name.string());
+    }
+    boost::system::error_code ec;
+    fs::remove(temp_file, ec);
+}
+#endif
 
 //BBS export gcode 3mf to file
 void Plater::export_gcode_3mf(bool export_all)

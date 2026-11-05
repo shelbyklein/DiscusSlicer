@@ -680,6 +680,13 @@ set(SLIC3R_GUI_SOURCES
 add_subdirectory(GUI/DeviceCore)
 add_subdirectory(GUI/DeviceTab)
 
+if (DISCUS_SLICER)
+    list(APPEND SLIC3R_GUI_SOURCES
+            GUI/SpoolsideUpload.cpp
+            GUI/SpoolsideUpload.hpp
+        )
+endif ()
+
 if (WIN32)
     list(APPEND SLIC3R_GUI_SOURCES
             GUI/dark_mode/dark_mode.hpp

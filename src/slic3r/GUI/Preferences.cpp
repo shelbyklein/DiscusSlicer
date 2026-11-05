@@ -18,6 +18,9 @@
 #include "slic3r/Utils/bambu_networking.hpp"
 #include "slic3r/Utils/NetworkAgent.hpp"
 #include "DownloadProgressDialog.hpp"
+#ifdef DISCUS_SLICER
+#include "SpoolsideUpload.hpp"
+#endif
 
 #ifdef __WINDOWS__
 #ifdef _MSW_DARK_MODE
@@ -1891,6 +1894,14 @@ void PreferencesDialog::create_items()
                                                       SETTING_USE_ENCRYPTED_TOKEN_FILE);
     g_sizer->Add(item_token_storage);
 
+#ifdef DISCUS_SLICER
+    //// ONLINE > Spoolside (replaces the network plug-in settings)
+    g_sizer->Add(create_item_title(_L("Spoolside")), 1, wxEXPAND);
+    g_sizer->Add(create_item_combobox(_L("Spoolside library"), _L("The print library that receives sliced plates."), "spoolside_library",
+                                      {_L("PlayCase"), _L("Personal")}, std::vector<std::string>{"playcase", "personal"}));
+    g_sizer->Add(create_item_button(_L("Spoolside server and API key"), _L("Set up"), "", _L("The API key is stored in the system keychain."),
+                                    [this]() { show_spoolside_settings(this); }));
+#else
     //// ONLINE > Network plugin
     g_sizer->Add(create_item_title(_L("Network plug-in")), 1, wxEXPAND);
 
@@ -1899,6 +1910,7 @@ void PreferencesDialog::create_items()
 
     auto item_plugin_version = create_item_network_plugin_version(_L("Network plug-in version"), _L("Select the network plug-in version to use"));
     g_sizer->Add(item_plugin_version);
+#endif
 
     g_sizer->AddSpacer(FromDIP(10));
     sizer_page->Add(g_sizer, 0, wxEXPAND);

@@ -167,6 +167,18 @@ option(SLIC3R_BUILD_SANDBOXES   "Build development sandboxes" OFF)
 option(BUILD_TESTS       "Build unit tests" OFF)
 option(ORCA_TOOLS       "Build Orca tools" OFF)
 
+# DiscusSlicer: never load the Bambu network plug-in, hand sliced plates to Spoolside instead,
+# and install as a separate app (bundle id and data dir) next to stock OrcaSlicer. See README.md.
+option(DISCUS_SLICER     "Build DiscusSlicer (no Bambu network plug-in, Spoolside handoff)" ON)
+set(ORCA_BUNDLE_ID   "com.orcaslicer.OrcaSlicer")
+set(ORCA_BUNDLE_NAME "OrcaSlicer")
+if (DISCUS_SLICER)
+    add_definitions(-DDISCUS_SLICER)
+    set(ORCA_BUNDLE_ID   "com.shelbyklein.DiscusSlicer")
+    set(ORCA_BUNDLE_NAME "DiscusSlicer")
+    SET(CMAKE_XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER "${ORCA_BUNDLE_ID}")
+endif ()
+
 if (FLATPAK)
     set(SLIC3R_FHS ON CACHE BOOL "" FORCE)
     set(SLIC3R_DESKTOP_INTEGRATION OFF CACHE BOOL "" FORCE)

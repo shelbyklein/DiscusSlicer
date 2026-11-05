@@ -58,6 +58,12 @@ int BBLNetworkPlugin::initialize(bool using_backup, const std::string& version)
 {
     clear_load_error();
 
+#ifdef DISCUS_SLICER
+    // DiscusSlicer: the closed-source plug-in crashes in its MQTT client, so it is never loaded.
+    set_load_error("Network plug-in disabled", "DiscusSlicer never loads the Bambu network plug-in", "");
+    return -1;
+#endif
+
     std::string library;
     std::string data_dir_str = data_dir();
     boost::filesystem::path data_dir_path(data_dir_str);
@@ -280,6 +286,9 @@ HMODULE BBLNetworkPlugin::get_source_module()
 void* BBLNetworkPlugin::get_source_module()
 #endif
 {
+#ifdef DISCUS_SLICER
+    return nullptr; // BambuSource (camera) is part of the plug-in and is never loaded either.
+#endif
     if ((m_source_module) || (!m_networking_module))
         return m_source_module;
 

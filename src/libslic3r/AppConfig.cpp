@@ -587,9 +587,18 @@ void AppConfig::set_defaults()
         set_bool("is_split_compound", false);
     }
 
+#ifdef DISCUS_SLICER
+    // DiscusSlicer: the Bambu network plug-in is never enabled, whatever the stored config says.
+    set_bool("installed_networking", false);
+    if (get("spoolside_url").empty())
+        set("spoolside_url", "https://spoolside.shelbyklein.com");
+    if (get("spoolside_library").empty())
+        set("spoolside_library", "playcase");
+#else
     if(get("installed_networking").empty()) {
         set_bool("installed_networking", false);
     }
+#endif
 
 #ifdef __linux__
     if (get("window_buttons_on_left").empty())
