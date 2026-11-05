@@ -1293,6 +1293,11 @@ int GuideFrame::SaveProfileData()
         m_ProfileJson["network_plugin_install"] = wxGetApp().app_config->get("app","installed_networking");
         m_ProfileJson["network_plugin_compability"] = wxGetApp().is_compatibility_version() ? "1" : "0";
         network_plugin_ready = wxGetApp().is_compatibility_version();
+#ifdef DISCUS_SLICER
+        // Report the plug-in as installed so the filament page finishes the guide instead of going on to the plug-in page.
+        m_ProfileJson["network_plugin_install"]     = "1";
+        m_ProfileJson["network_plugin_compability"] = "1";
+#endif
 
         StealthMode = wxGetApp().app_config->get_bool("app","stealth_mode");
         m_ProfileJson["stealth_mode"] = StealthMode;

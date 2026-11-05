@@ -448,7 +448,12 @@ void Http::priv::http_perform()
 	::curl_easy_setopt(curl, CURLOPT_PROGRESSDATA, static_cast<void*>(this));
 #endif
 
+#ifdef DISCUS_SLICER
+	// Verbose output includes request headers (the Spoolside API key); keep it off so it can never reach stderr or a log.
+	::curl_easy_setopt(curl, CURLOPT_VERBOSE, 0L);
+#else
 	::curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+#endif
 
 	if (headerlist != nullptr) {
 		::curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headerlist);

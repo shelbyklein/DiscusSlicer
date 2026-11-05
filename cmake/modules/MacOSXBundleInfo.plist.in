@@ -28,6 +28,7 @@
 	<string>${MACOSX_BUNDLE_BUNDLE_VERSION}</string>
 	<key>ATSApplicationFontsPath</key>
   	<string>fonts/</string>
+  ${ORCA_URL_TYPES_BEGIN}
   <key>CFBundleURLTypes</key>
     <array>
       <dict>
@@ -39,6 +40,7 @@
         </array>
       </dict>
     </array>
+  ${ORCA_URL_TYPES_END}
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>

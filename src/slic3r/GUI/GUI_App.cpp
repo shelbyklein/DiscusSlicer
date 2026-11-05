@@ -940,7 +940,9 @@ void GUI_App::post_init()
                 this->preset_updater->sync(http_url, language, network_ver, sys_preset ? preset_bundle : nullptr);
             }
 
+#ifndef DISCUS_SLICER // DiscusSlicer: no "new version of OrcaSlicer" prompt at launch
             this->check_new_version_sf();
+#endif
             const auto cloud_provider = get_printer_cloud_provider();
             if (is_user_login(cloud_provider) && !app_config->get_stealth_mode()) {
               // this->check_privacy_version(0);
@@ -2980,7 +2982,9 @@ bool GUI_App::on_init_inner()
             associate_files(L"step");
             associate_files(L"stp");
         }
+#ifndef DISCUS_SLICER // orcaslicer:// links stay with stock OrcaSlicer
         associate_url(L"orcaslicer");
+#endif
 
         if (app_config->get("associate_gcode") == "true")
             associate_files(L"gcode");
@@ -8179,7 +8183,9 @@ void GUI_App::open_preferences(size_t open_on_tab, const std::string& highlight_
                     associate_files(L"step");
                     associate_files(L"stp");
                 }
+#ifndef DISCUS_SLICER // orcaslicer:// links stay with stock OrcaSlicer
                 associate_url(L"orcaslicer");
+#endif
             }
             else {
                 if (app_config->get("associate_gcode") == "true")

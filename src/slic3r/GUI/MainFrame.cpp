@@ -246,6 +246,25 @@ public:
 #endif // __APPLE__
 
 // Load the icon either from the exe, or from the ico file.
+// DiscusSlicer: Bambu printers' Print/Send buttons upload to Spoolside (Plater::send_to_spoolside).
+static wxString print_plate_label()
+{
+#ifdef DISCUS_SLICER
+    if (wxGetApp().preset_bundle && wxGetApp().preset_bundle->use_bbl_network())
+        return _L("Send to Spoolside");
+#endif
+    return _L("Print plate");
+}
+
+static wxString print_all_label()
+{
+#ifdef DISCUS_SLICER
+    if (wxGetApp().preset_bundle && wxGetApp().preset_bundle->use_bbl_network())
+        return _L("Send all to Spoolside");
+#endif
+    return _L("Print all");
+}
+
 static wxIcon main_frame_icon(GUI_App::EAppMode app_mode)
 {
 #if _WIN32
@@ -1831,7 +1850,7 @@ wxBoxSizer* MainFrame::create_side_tools()
 
     m_slice_btn = new SideButton(slice_panel, _L("Slice plate"), "");
     m_slice_option_btn = new SideButton(slice_panel, "", "sidebutton_dropdown", 0, 14);
-    m_print_btn = new SideButton(print_panel, _L("Print plate"), "");
+    m_print_btn = new SideButton(print_panel, print_plate_label(), "");
     m_print_option_btn = new SideButton(print_panel, "", "sidebutton_dropdown", 0, 14);
 
     auto slice_sizer = new wxBoxSizer(wxHORIZONTAL);
@@ -2050,7 +2069,7 @@ wxBoxSizer* MainFrame::create_side_tools()
             }
             else {
                 //Orca Slicer Buttons
-                SideButton* print_plate_btn = new SideButton(p, _L("Print plate"), "");
+                SideButton* print_plate_btn = new SideButton(p, print_plate_label(), "");
                 print_plate_btn->SetCornerRadius(0);
 
                 SideButton* send_to_printer_btn = new SideButton(p, _L("Send"), "");
@@ -2063,7 +2082,7 @@ wxBoxSizer* MainFrame::create_side_tools()
                 export_all_sliced_file_btn->SetCornerRadius(0);
 
                 print_plate_btn->Bind(wxEVT_BUTTON, [this, p](wxCommandEvent&) {
-                    m_print_btn->SetLabel(_L("Print plate"));
+                    m_print_btn->SetLabel(print_plate_label());
                     m_print_select = ePrintPlate;
                     m_print_enable = get_enable_print_status();
                     m_print_btn->Enable(m_print_enable);
@@ -2072,10 +2091,10 @@ wxBoxSizer* MainFrame::create_side_tools()
                     p->Dismiss();
                     });
 
-                SideButton* print_all_btn = new SideButton(p, _L("Print all"), "");
+                SideButton* print_all_btn = new SideButton(p, print_all_label(), "");
                 print_all_btn->SetCornerRadius(0);
                 print_all_btn->Bind(wxEVT_BUTTON, [this, p](wxCommandEvent&) {
-                    m_print_btn->SetLabel(_L("Print all"));
+                    m_print_btn->SetLabel(print_all_label());
                     m_print_select = ePrintAll;
                     m_print_enable = get_enable_print_status();
                     m_print_btn->Enable(m_print_enable);
@@ -2133,6 +2152,9 @@ wxBoxSizer* MainFrame::create_side_tools()
                 if (preset_bundle) {
                     if (preset_bundle->use_bbl_network()) {
                         // BBL network support everything
+#ifdef DISCUS_SLICER
+                        support_send = false; // Send and Send all would upload to Spoolside just like Print plate and Print all
+#endif
                     } else {
                         support_send = false; // All 3rd print hosts do not have the send options
 
@@ -4033,7 +4055,7 @@ void MainFrame::on_config_changed(DynamicPrintConfig* config) const
 void MainFrame::set_print_button_to_default(PrintSelectType select_type)
 {
     if (select_type == PrintSelectType::ePrintPlate) {
-        m_print_btn->SetLabel(_L("Print plate"));
+        m_print_btn->SetLabel(print_plate_label());
         m_print_select = ePrintPlate;
         if (m_print_enable)
             m_print_enable = get_enable_print_status();

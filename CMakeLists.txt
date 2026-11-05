@@ -176,6 +176,9 @@ if (DISCUS_SLICER)
     add_definitions(-DDISCUS_SLICER)
     set(ORCA_BUNDLE_ID   "com.shelbyklein.DiscusSlicer")
     set(ORCA_BUNDLE_NAME "DiscusSlicer")
+    # Comment out CFBundleURLTypes in the Info.plist so orcaslicer:// links go to stock OrcaSlicer.
+    set(ORCA_URL_TYPES_BEGIN "<!--")
+    set(ORCA_URL_TYPES_END   "-->")
     SET(CMAKE_XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER "${ORCA_BUNDLE_ID}")
 endif ()
 
