@@ -1,6 +1,8 @@
 # DiscusSlicer: macOS arm64 build, so the app is never built on Shelby's Mac.
 # One job on a GitHub-hosted Apple Silicon runner. Dependencies are cached and keyed on the deps/ tree,
-# so they rebuild only when deps/ changes. No signing or notarization: tools/discus-install.sh ad-hoc
+# so they rebuild only when deps/ changes. The app compile goes through ccache, whose cache is saved after
+# every run (even a failed one) and restored from the newest entry, so a small change rebuilds only what
+# it touches. No signing or notarization: tools/discus-install.sh ad-hoc
 # signs the app when it installs it.
 #
 # Output: an artifact DiscusSlicer-<version>-<short sha> holding DiscusSlicer-<version>-<short sha>.zip,
@@ -23,6 +25,7 @@ concurrency:
 
 permissions:
   contents: write   # create the discus-<version> release
+  actions: write    # delete superseded ccache entries
 
 jobs:
   build:
@@ -33,6 +36,12 @@ jobs:
       ARCH: arm64
       # 3 vCPU / 7 GB runner. Upstream uses 1 job to avoid running out of memory; 3 is a middle ground.
       CMAKE_BUILD_PARALLEL_LEVEL: 3
+      CCACHE_DIR: ${{ github.workspace }}/../ccache
+      CCACHE_BASEDIR: ${{ github.workspace }}
+      CCACHE_COMPILERCHECK: content
+      CCACHE_SLOPPINESS: pch_defines,time_macros,include_file_mtime,include_file_ctime
+      CCACHE_MAXSIZE: 6G   # GitHub allows 10 GB of caches per repo; deps take ~0.1 GB
+      DISCUS_CCACHE_KEY: discus-macos-arm64-ccache-${{ github.ref_name }}-
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -63,15 +72,8 @@ jobs:
 
       - name: Install tools
         run: |
-          brew install automake texinfo libtool
+          brew install automake texinfo libtool ccache
           echo "SDKROOT=$(xcrun --sdk macosx --show-sdk-path)" >> "$GITHUB_ENV"   # GMP/MPFR configure needs it
-
-      - name: Free disk space
-        run: |
-          df -h /
-          sudo find /Applications -maxdepth 1 -type d -name "Xcode_*.app" ! -name "Xcode_15.4.app" -exec rm -rf {} +
-          sudo rm -rf ~/Library/Developer/CoreSimulator/Caches/*
-          df -h /
 
       - name: Build deps
         if: steps.deps-cache.outputs.cache-hit != 'true'
@@ -87,8 +89,49 @@ jobs:
           path: ${{ github.workspace }}/deps/build/arm64
           key: ${{ steps.meta.outputs.deps-key }}
 
+      - name: Restore ccache
+        uses: actions/cache/restore@v5
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ${{ env.DISCUS_CCACHE_KEY }}${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: ${{ env.DISCUS_CCACHE_KEY }}
+
       - name: Build DiscusSlicer
-        run: ./build_release_macos.sh -s -x -a arm64 -t 10.15
+        env:
+          # Read by CMake on the first configure, so build_release_macos.sh needs no change. Only this step
+          # sets them, so the cached deps are unaffected. -fno-pch-timestamp lets ccache cache the files
+          # that use the precompiled headers of libslic3r and libslic3r_gui.
+          CMAKE_C_COMPILER_LAUNCHER: ccache
+          CMAKE_CXX_COMPILER_LAUNCHER: ccache
+          CFLAGS: -Xclang -fno-pch-timestamp
+          CXXFLAGS: -Xclang -fno-pch-timestamp
+        run: |
+          ccache -z
+          ./build_release_macos.sh -s -x -a arm64 -t 10.15
+
+      - name: ccache stats
+        if: always()
+        run: |
+          ccache -s -v || true
+          sysctl -n hw.ncpu hw.memsize; vm_stat | grep -E 'Pageouts|Swapouts'; df -h / | tail -1
+
+      - name: Save ccache
+        id: save-ccache
+        if: always()
+        uses: actions/cache/save@v5
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ${{ env.DISCUS_CCACHE_KEY }}${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Delete older ccache entries
+        if: always() && steps.save-ccache.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Keep only the entry just saved, so old ones never push the deps cache out of the 10 GB limit.
+          keep="${{ env.DISCUS_CCACHE_KEY }}${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}"
+          gh cache list -R "$GITHUB_REPOSITORY" -k "$DISCUS_CCACHE_KEY" -L 100 --json id,key -q ".[] | select(.key != \"$keep\") | .id" |
+            while read -r id; do gh cache delete "$id" -R "$GITHUB_REPOSITORY"; done
 
       - name: Package
         id: pack
