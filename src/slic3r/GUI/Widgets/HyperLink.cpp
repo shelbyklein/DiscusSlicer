@@ -1,13 +1,21 @@
 #include "HyperLink.hpp"
 #include "Label.hpp"
+#ifdef DISCUS_SLICER
+#include "StateColor.hpp"
+#endif
 
 namespace Slic3r { namespace GUI {
 
 HyperLink::HyperLink(wxWindow* parent, const wxString& label, const wxString& url, long style)
     : wxStaticText(parent, wxID_ANY, label)
     , m_url(url)
+#ifdef DISCUS_SLICER
+    , m_normalColor(DISCUS_ACCENT(wxColour("#009688")))
+    , m_hoverColor(DISCUS_ACCENT(wxColour("#26A69A")))
+#else
     , m_normalColor(wxColour("#009687")) // used slightly different color otherwise automatically uses ColorForDark that not visible enough
     , m_hoverColor(wxColour("#26A69A"))
+#endif
 {
     SetForegroundColour(m_normalColor);
     HyperLink::SetFont(Label::Head_14);

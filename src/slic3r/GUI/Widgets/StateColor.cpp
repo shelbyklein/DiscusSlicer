@@ -51,6 +51,33 @@ static std::map<wxColour, wxColour> gDarkColors{
     {"#E5F0EE", "#283232"}, // rgb(229, 240, 238)  Combo / Dropdown focused background color > ORCA color with %10 opacity
 };
 
+#ifdef DISCUS_SLICER
+// DiscusSlicer palette: Orca's teal accent family -> near-black and greys in light mode,
+// mid greys in dark mode (light enough to stand out from #2D2D31, dark enough for white button text).
+static std::map<wxColour, std::pair<wxColour, wxColour>> gDiscusAccent{
+    //  Orca          light        dark
+    {"#009688", {"#1A1A1A", "#8A8A90"}}, // ORCA accent
+    {"#00675B", {"#000000", "#8A8A90"}}, // ORCA accent, dark mode
+    {"#26A69A", {"#333333", "#9E9EA4"}}, // ORCA accent hover
+    {"#008172", {"#333333", "#9E9EA4"}}, // ORCA accent hover, dark mode
+    {"#00897B", {"#000000", "#737379"}}, // accent pressed
+    {"#52C7B8", {"#4D4D4D", "#9E9EA4"}}, // checked + hovered
+    {"#22BFB0", {"#4D4D4D", "#B4B4BA"}}, // button focus border, dark mode
+    {"#00FFD4", {"#8C8C8C", "#B4B4BA"}}, // button focus border, light mode
+    {"#BFE1DE", {"#DEDEDE", "#4A4A50"}}, // ORCA 25% tint: selected item / tab background
+    {"#223C3C", {"#DEDEDE", "#4A4A50"}}, // ...its dark-mode value
+    {"#E5F0EE", {"#EDEDED", "#3C3C42"}}, // ORCA 10% tint: focused box background
+    {"#283232", {"#EDEDED", "#3C3C42"}}, // ...its dark-mode value
+};
+
+wxColour StateColor::discusAccentFor(wxColour const &color, bool dark)
+{
+    auto iter = gDiscusAccent.find(color);
+    if (iter == gDiscusAccent.end()) return color;
+    return dark ? iter->second.second : iter->second.first;
+}
+#endif
+
 std::tuple<double, double, double> StateColor::GetLAB(const wxColour& color) {
     // Convert color to RGB color space
     double r = color.Red() / 255.0;
@@ -187,8 +214,15 @@ std::map<wxColour, wxColour> const & StateColor::GetDarkMap()
 
 void StateColor::SetDarkMode(bool dark) { gDarkMode = dark; }
 
+#ifdef DISCUS_SLICER
+bool StateColor::isDarkMode() { return gDarkMode; }
+#endif
+
 inline wxColour darkModeColorFor2(wxColour const &color)
 {
+#ifdef DISCUS_SLICER
+    if (gDiscusAccent.count(color)) return StateColor::discusAccentFor(color, gDarkMode);
+#endif
     if (!gDarkMode)
         return color;
     auto iter = gDarkColors.find(color);

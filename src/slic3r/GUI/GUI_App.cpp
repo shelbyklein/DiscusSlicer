@@ -307,7 +307,12 @@ public:
         bool dark_mode = m_fg_color != wxColour("#6B6A6A");
         wxSize sz  = m_window->GetClientSize();
         BitmapCache bmp_cache;
+#ifdef DISCUS_SLICER
+        m_logo_bmp = wxBitmap(wxImage(from_u8(Slic3r::var(dark_mode ? "DiscusSlicer_splash_dark.png" : "DiscusSlicer_splash.png")), wxBITMAP_TYPE_PNG)
+                                  .Rescale(sz.GetWidth(), sz.GetHeight(), wxIMAGE_QUALITY_HIGH));
+#else
         m_logo_bmp = *bmp_cache.load_svg(dark_mode ? "splash_logo_dark" : "splash_logo", sz.GetWidth(), sz.GetHeight());
+#endif
 
         m_window->Bind(wxEVT_PAINT, &SplashScreen::OnPaint, this);
         m_window->Refresh();

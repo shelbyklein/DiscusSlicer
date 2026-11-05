@@ -347,7 +347,16 @@ public:
     static const ImVec4 COL_TOOLBAR_BG_DARK;
     static const ImVec4 COL_SEPARATOR;
     static const ImVec4 COL_SEPARATOR_DARK;
+#ifdef DISCUS_SLICER
+#define ORCA_IMCOLOR(alpha) ImColor(ImGuiWrapper::COL_ORCA.x, ImGuiWrapper::COL_ORCA.y, ImGuiWrapper::COL_ORCA.z, (alpha) / 255.f)
+#else
+#define ORCA_IMCOLOR(alpha) ImColor(0, 150, 136, alpha)
+#endif
+#ifdef DISCUS_SLICER
+    static ImVec4 COL_ORCA; // DiscusSlicer: grey accent, follows light/dark mode (on_change_color_mode)
+#else
     static const ImVec4 COL_ORCA;
+#endif
     static const ImVec4 COL_MODIFIED;
     static const ImVec4 COL_WARNING;
 

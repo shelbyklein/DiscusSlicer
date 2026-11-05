@@ -406,7 +406,7 @@ void FilamentStepIndicator::doRender(wxDC& dc)
     }
 
     dc.SetFont(::Label::Head_16);
-    dc.SetTextForeground(wxColour(0, 150, 136));
+    dc.SetTextForeground(DISCUS_ACCENT(wxColour(0, 150, 136)));
     int circleX = 20;
     int circleY = 20;
     wxSize sz = dc.GetTextExtent(L"Loading");

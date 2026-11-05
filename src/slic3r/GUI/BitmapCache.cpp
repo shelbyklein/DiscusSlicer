@@ -4,6 +4,9 @@
 #include "../Utils/MacDarkMode.hpp"
 #include "GUI.hpp"
 #include "GUI_Utils.hpp"
+#ifdef DISCUS_SLICER
+#include "Widgets/StateColor.hpp"
+#endif
 
 #include <boost/nowide/cstdio.hpp>
 #include <boost/filesystem.hpp>
@@ -307,6 +310,17 @@ error:
     return NULL;
 }
 
+#ifdef DISCUS_SLICER
+void BitmapCache::add_discus_accent_replaces(std::map<std::string, std::string> &replaces, bool dark_mode)
+{
+    for (const char *orca : {"#009688", "#26A69A", "#26a69a", "#E5F0EE", "#e5f0ee", "#00675b", "#00675B"}) {
+        const std::string grey = StateColor::discusAccentFor(wxColour(orca), dark_mode).GetAsString(wxC2S_HTML_SYNTAX).ToStdString();
+        replaces[orca] = grey;
+        replaces[std::string("\"") + orca + "\""] = "\"" + grey + "\"";
+    }
+}
+#endif
+
 wxBitmap* BitmapCache::load_svg(const std::string &bitmap_name, unsigned target_width, unsigned target_height, 
     const bool grayscale/* = false*/, const bool dark_mode/* = false*/, const std::string& new_color /*= ""*/, const float scale_in_center/* = 0*/)
 {
@@ -347,6 +361,12 @@ wxBitmap* BitmapCache::load_svg(const std::string &bitmap_name, unsigned target_
     if (strstr(bitmap_name.c_str(), "toggle_on") != NULL && dark_mode) // ORCA only replace color of toggle button
         replaces["#009688"] = "#00675b";
 
+#ifdef DISCUS_SLICER
+    // DiscusSlicer: recolour the teal accent in icons to the grey palette (see StateColor::discusAccentFor).
+    // Icons whose #009688 is a placeholder for a new_color are left to the code below.
+    if (new_color.empty())
+        add_discus_accent_replaces(replaces, dark_mode);
+#endif
     if (!new_color.empty())
         replaces["\"#009688\""] = "\"" + new_color + "\"";
 

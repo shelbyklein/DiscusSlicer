@@ -5,6 +5,9 @@
 #include "GLCanvas3D.hpp"
 #include "GUI_App.hpp"
 #include "Plater.hpp"
+#ifdef DISCUS_SLICER
+#include "ImGuiWrapper.hpp"
+#endif
 #include <igl/project.h>
 
 #include <glad/gl.h>
@@ -172,7 +175,11 @@ namespace GUI {
             }
 #endif // !SLIC3R_OPENGL_ES
 
+#ifdef DISCUS_SLICER
+            m_rectangle.set_color({ ImGuiWrapper::COL_ORCA.x, ImGuiWrapper::COL_ORCA.y, ImGuiWrapper::COL_ORCA.z, 1.f });
+#else
             m_rectangle.set_color(ColorRGBA::ORCA()); // ORCA: use orca color for selection rectangle
+#endif
             m_rectangle.render();
             shader->stop_using();
         }

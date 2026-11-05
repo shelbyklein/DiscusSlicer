@@ -343,7 +343,11 @@ static void add_msg_content(wxWindow   *parent,
         msg_escaped = std::string("<pre><code>") + msg_escaped + "</code></pre>";
 
     if (!link_text.IsEmpty() && link_callback) {
+#ifdef DISCUS_SLICER
+        msg_escaped += "<span><a href=\"#\" style=\"color:" + DISCUS_ACCENT(wxColour("#009688")).GetAsString(wxC2S_HTML_SYNTAX).ToStdString() + "; text-decoration:underline;\">" + std::string(link_text.ToUTF8().data()) + "</a></span>";
+#else
         msg_escaped += "<span><a href=\"#\" style=\"color:rgb(0, 150, 136); text-decoration:underline;\">" + std::string(link_text.ToUTF8().data()) + "</a></span>";
+#endif
     }
 
     html->SetPage("<html><body bgcolor=\"" + bgr_clr_str + "\"><font color=\"" + text_clr_str + "\">" + wxString::FromUTF8(msg_escaped.data()) + "</font></body></html>");

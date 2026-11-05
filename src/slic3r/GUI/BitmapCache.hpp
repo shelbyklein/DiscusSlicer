@@ -42,6 +42,10 @@ public:
 	// And makes replases befor parsing
 	// replace_map containes old_value->new_value
 	static NSVGimage* nsvgParseFromFileWithReplace(const char* filename, const char* units, float dpi, const std::map<std::string, std::string>& replaces);
+#ifdef DISCUS_SLICER
+	// DiscusSlicer: replacements that turn Orca's teal accent in an SVG into the grey palette.
+	static void add_discus_accent_replaces(std::map<std::string, std::string> &replaces, bool dark_mode);
+#endif
 	// Load svg from resources/icons. bitmap_key is given without the .svg suffix. SVG will be rasterized to provided height/width.
     wxBitmap* 		load_svg(const std::string &bitmap_key, unsigned width = 0, unsigned height = 0, const bool grayscale = false, const bool dark_mode = false, const std::string& new_color = "", const float scale_in_center = 0.f);
     //Load background image of semi transparent material with color,

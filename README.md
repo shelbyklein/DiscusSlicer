@@ -31,6 +31,16 @@ which defines the `DISCUS_SLICER` macro. Search for `DISCUS_SLICER` to find ever
 - **Separate app.** Bundle id `com.shelbyklein.DiscusSlicer`, bundle name DiscusSlicer, and data folder
   `~/Library/Application Support/DiscusSlicer`, so it never reads or changes stock OrcaSlicer's config.
   `SLIC3R_APP_KEY` stays `OrcaSlicer` on purpose: 3MF metadata, G-code headers and translations depend on it.
+- **Black and grey instead of Orca teal.** Orca's accent family (#009688, hover #26A69A, dark #00675B, tints #BFE1DE /
+  #E5F0EE, ...) is remapped in one table, `gDiscusAccent` in `src/slic3r/GUI/Widgets/StateColor.cpp`: near-black #1A1A1A
+  (hover #333333, pressed #000000, tints #DEDEDE / #EDEDED) in light mode, mid grey #8A8A90 (hover #9E9EA4, tints #4A4A50 /
+  #3C3C42) in dark mode so white button text stays readable. Every `StateColor` and `darkModeColorFor()` goes through it;
+  ImGui overlays use `ImGuiWrapper::COL_ORCA` (now mode-dependent), SVG icons are recoloured on load (`BitmapCache`,
+  `GLTexture`), and the few direct colour literals in visible UI are wrapped in `DISCUS_ACCENT()`. The web pages in
+  `resources/web` are recoloured by `tools/discus_recolor_web.py` (re-run it after rebasing). Bambu device/monitor pages,
+  which DiscusSlicer never shows, keep their literals.
+- **Own logo.** Fish app icon (`resources/DiscusSlicer.icns`), splash and About banner (`resources/images/DiscusSlicer_*.png`),
+  and the web homepage logo (`resources/web/image/logo.png`).
 - **One-time preset import.** On first launch it offers to copy the user presets of `~/Library/Application Support/OrcaSlicer/user`
   into its own `user/default` folder (every account folder is merged, newest file wins). OrcaSlicer's files are only read.
 

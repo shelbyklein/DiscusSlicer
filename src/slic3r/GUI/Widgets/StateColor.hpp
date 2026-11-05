@@ -5,6 +5,13 @@
 
 #include <map>
 
+#ifdef DISCUS_SLICER
+// Wrap Orca accent colours that are used directly (not through StateColor) so they get the DiscusSlicer palette.
+#define DISCUS_ACCENT(c) StateColor::darkModeColorFor(c)
+#else
+#define DISCUS_ACCENT(c) (c)
+#endif
+
 class StateColor
 {
 public:
@@ -35,6 +42,12 @@ public:
     static std::map<wxColour, wxColour> const & GetDarkMap();
     static wxColour darkModeColorFor(wxColour const &color);
     static wxColour lightModeColorFor(wxColour const &color);
+#ifdef DISCUS_SLICER
+    // DiscusSlicer: Orca's teal accent family mapped to black/grey for light or dark mode
+    // (returns the colour unchanged if it isn't an accent colour). darkModeColorFor() applies it too.
+    static wxColour discusAccentFor(wxColour const &color, bool dark);
+    static bool isDarkMode();
+#endif
 
 public:
     template<typename ...Colors>

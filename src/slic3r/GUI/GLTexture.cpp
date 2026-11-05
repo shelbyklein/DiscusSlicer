@@ -9,6 +9,9 @@
 #include "3DScene.hpp"
 #include "OpenGLManager.hpp"
 #include "GUI_App.hpp"
+#ifdef DISCUS_SLICER
+#include "BitmapCache.hpp"
+#endif
 #include "GLModel.hpp"
 
 #include <glad/gl.h>
@@ -306,7 +309,14 @@ bool GLTexture::load_from_svg_files_as_sprites_array(const std::vector<std::stri
         if (!boost::algorithm::iends_with(filename, ".svg"))
             continue;
 
+#ifdef DISCUS_SLICER
+        // DiscusSlicer: grey accent in the 3D toolbar icons (the *_dark.svg files are the dark-mode set)
+        std::map<std::string, std::string> replaces;
+        BitmapCache::add_discus_accent_replaces(replaces, wxGetApp().dark_mode() || boost::algorithm::icontains(filename, "_dark"));
+        NSVGimage* image = BitmapCache::nsvgParseFromFileWithReplace(filename.c_str(), "px", 96.0f, replaces);
+#else
         NSVGimage* image = nsvgParseFromFile(filename.c_str(), "px", 96.0f);
+#endif
         if (image == nullptr)
             continue;
 
@@ -883,7 +893,13 @@ bool GLTexture::load_from_svg(const std::string& filename, bool use_mipmaps, boo
 {
     const bool compression_enabled = compress && OpenGLManager::are_compressed_textures_supported();
 
+#ifdef DISCUS_SLICER
+    std::map<std::string, std::string> replaces;
+    BitmapCache::add_discus_accent_replaces(replaces, wxGetApp().dark_mode() || boost::algorithm::icontains(filename, "_dark"));
+    NSVGimage* image = BitmapCache::nsvgParseFromFileWithReplace(filename.c_str(), "px", 96.0f, replaces);
+#else
     NSVGimage* image = nsvgParseFromFile(filename.c_str(), "px", 96.0f);
+#endif
     if (image == nullptr) {
         reset();
         return false;

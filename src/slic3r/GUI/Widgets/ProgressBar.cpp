@@ -1,5 +1,8 @@
 #include "ProgressBar.hpp"
 #include "../I18N.hpp"
+#ifdef DISCUS_SLICER
+#include "StateColor.hpp"
+#endif
 #include <wx/dcclient.h>
 #include <wx/dcgraph.h>
 #include "Label.hpp"
@@ -206,8 +209,8 @@ void ProgressBar::doRender(wxDC &dc)
         m_proportion = float(size.x * float(this->m_step) / float(this->m_max));
         if (m_proportion < m_radius * 2  && m_proportion != 0) { m_proportion = m_radius * 2; }
 
-        dc.SetPen(wxPen(m_progress_colour, 1));
-        dc.SetBrush(wxBrush(m_progress_colour));
+        dc.SetPen(wxPen(DISCUS_ACCENT(m_progress_colour), 1));
+        dc.SetBrush(wxBrush(DISCUS_ACCENT(m_progress_colour)));
         if (m_radius == 0) {
             dc.DrawRectangle(0, 0, m_proportion, size.y);
         } else {

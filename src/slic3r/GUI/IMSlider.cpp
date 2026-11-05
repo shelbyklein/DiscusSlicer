@@ -29,7 +29,11 @@ static const ImU32 BACKGROUND_COLOR_DARK  = IM_COL32(65, 65, 71, 255);
 static const ImU32 BACKGROUND_COLOR_LIGHT = IM_COL32(255, 255, 255, 255);
 static const ImU32 GROOVE_COLOR_DARK      = IM_COL32(45, 45, 49, 255);
 static const ImU32 GROOVE_COLOR_LIGHT     = IM_COL32(206, 206, 206, 255);
+#ifdef DISCUS_SLICER
+#define BRAND_COLOR ((ImU32) ORCA_IMCOLOR(255)) // DiscusSlicer: follows light/dark mode
+#else
 static const ImU32 BRAND_COLOR            = IM_COL32(0, 150, 136, 255);
+#endif
 
 static int m_tick_value = -1;
 static ImVec4 m_tick_rect;
