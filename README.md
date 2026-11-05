@@ -35,6 +35,16 @@ which defines the `DISCUS_SLICER` macro. Search for `DISCUS_SLICER` to find ever
   links the plate to those assets (with their new STL hashes). If no object is uploaded, the entry's existing links
   are left alone. A confirmation lists the entry and each asset added or updated, with an "Open in Spoolside" button.
 
+  **Print on.** The dialog also offers *Print on* (default: the printer used last, if it can start a print now), listing
+  Spoolside's printers from `GET /api/workspace` with their state. With a printer chosen, each filament the plate uses gets
+  a spool: an AMS slot, or the external spool for a single-filament plate, preset like Spoolside's own default (the loaded
+  spool of the same material family with the nearest colour). The button then reads "Add and print". After the upload,
+  `POST /api/printers/:id/print {fileId, plate, useAms, amsMapping, bedLevelling}` asks Spoolside to send the file over
+  the LAN and start it. Spoolside checks the bed with the printer's camera first; if it sees something (409 with `bed`),
+  DiscusSlicer asks, and "Bed is clear, print" repeats the request with `bedClear: true`. The plate always stays in the
+  library, so a print that didn't start can be started from Spoolside later. The last printer is kept in the app config
+  (`spoolside_printer`).
+
   **STL coordinates.** The STL is the object as designed, not as placed: only model parts are merged (no modifiers,
   negative volumes or support blockers), and the plate position, rotation and scale of the instance are left out.
   Each part loaded from a file goes back to where it sat in that file (`ModelVolume::source.mesh_offset`, the centre

@@ -15058,8 +15058,22 @@ void Plater::send_to_spoolside()
             assets.push_back({object->name});
         }
 
-    std::string scope;
-    if (!spoolside_add_dialog(this, name, scope, assets))
+    // The filaments the plate prints with (1-based ids, as in the sliced file), for choosing spools on the printer.
+    std::vector<SpoolsideFilament> filaments;
+    {
+        const DynamicPrintConfig  config  = wxGetApp().preset_bundle->full_config();
+        const ConfigOptionStrings* types   = config.option<ConfigOptionStrings>("filament_type");
+        const ConfigOptionStrings* colours = config.option<ConfigOptionStrings>("filament_colour");
+        for (int id : plate->get_extruders(true)) {
+            const size_t i = size_t(id - 1);
+            filaments.push_back({id, types && i < types->size() ? types->get_at(i) : std::string(),
+                                 colours && i < colours->size() ? colours->get_at(i) : std::string()});
+        }
+    }
+
+    std::string    scope;
+    SpoolsidePrint print;
+    if (!spoolside_add_dialog(this, name, scope, assets, filaments, print))
         return;
 
     std::vector<fs::path> files{fs::temp_directory_path() / fs::unique_path("discus-%%%%-%%%%.gcode.3mf")};
@@ -15071,7 +15085,7 @@ void Plater::send_to_spoolside()
             written = !mesh.empty() && store_stl(assets[i].stl.string().c_str(), &mesh, true);
         }
     if (written)
-        spoolside_upload(this, files.front(), into_u8(name), scope, assets);
+        spoolside_upload(this, files.front(), into_u8(name), scope, assets, print);
     else
         show_error(this, _L("Could not write the files to upload."), false);
     for (const fs::path& file : files) {
