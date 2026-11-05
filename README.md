@@ -73,7 +73,22 @@ which defines the `DISCUS_SLICER` macro. Search for `DISCUS_SLICER` to find ever
 - **One-time preset import.** On first launch it offers to copy the user presets of `~/Library/Application Support/OrcaSlicer/user`
   into its own `user/default` folder (every account folder is merged, newest file wins). OrcaSlicer's files are only read.
 
-## Building (macOS, Apple Silicon)
+## Building and installing (macOS, Apple Silicon)
+
+GitHub Actions builds the app on every push to `discus` (`.github/workflows/discus_macos.yml`, macOS arm64, Release,
+unsigned). Each build is an artifact `DiscusSlicer-<version>-<sha>`; the first build of a new `DISCUS_VERSION`
+(set in `CMakeLists.txt`) is also published as the release `discus-<version>`. Quit DiscusSlicer, then install with:
+
+```sh
+tools/discus-install.sh                  # latest successful build
+tools/discus-install.sh --run <run id>   # a specific workflow run
+tools/discus-install.sh --version 1.0.2  # a release
+```
+
+It needs `gh` signed in. It moves the old app to `~/Vibes/DiscusSlicer-backups/DiscusSlicer-prev.app`, strips quarantine
+and ad-hoc signs the new one. macOS may ask once more for access to the `DiscusSlicer/Spoolside` Keychain item.
+
+To build locally instead:
 
 ```sh
 brew install cmake ninja automake autoconf libtool texinfo gettext

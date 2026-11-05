@@ -1,0 +1,126 @@
+# DiscusSlicer: macOS arm64 build, so the app is never built on Shelby's Mac.
+# One job on a GitHub-hosted Apple Silicon runner. Dependencies are cached and keyed on the deps/ tree,
+# so they rebuild only when deps/ changes. No signing or notarization: tools/discus-install.sh ad-hoc
+# signs the app when it installs it.
+#
+# Output: an artifact DiscusSlicer-<version>-<short sha> holding DiscusSlicer-<version>-<short sha>.zip,
+# and, the first time a DISCUS_VERSION is built, a GitHub Release discus-<version> with the same zip
+# (artifacts expire after 90 days; releases keep every version).
+name: DiscusSlicer macOS
+
+on:
+  push:
+    branches: [discus]
+    paths-ignore:
+      - '**.md'
+      - 'tools/discus-install.sh'
+      - 'output/**'
+  workflow_dispatch:
+
+concurrency:
+  group: discus-macos-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write   # create the discus-<version> release
+
+jobs:
+  build:
+    name: Build DiscusSlicer (macOS arm64)
+    runs-on: macos-14
+    timeout-minutes: 360
+    env:
+      ARCH: arm64
+      # 3 vCPU / 7 GB runner. Upstream uses 1 job to avoid running out of memory; 3 is a middle ground.
+      CMAKE_BUILD_PARALLEL_LEVEL: 3
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          lfs: 'false'
+
+      - name: Version and cache key
+        id: meta
+        run: |
+          ver=$(sed -n 's/.*set(DISCUS_VERSION "\(.*\)").*/\1/p' CMakeLists.txt)
+          [ -n "$ver" ] || { echo "DISCUS_VERSION not found in CMakeLists.txt"; exit 1; }
+          sha=$(git rev-parse --short=7 HEAD)
+          echo "version=$ver" >> "$GITHUB_OUTPUT"
+          echo "name=DiscusSlicer-$ver-$sha" >> "$GITHUB_OUTPUT"
+          # Computed once, before deps/build exists, so restore and save use the same key.
+          echo "deps-key=discus-macos-arm64-deps-${{ hashFiles('deps/**') }}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore cached deps
+        id: deps-cache
+        uses: actions/cache/restore@v5
+        with:
+          path: ${{ github.workspace }}/deps/build/arm64
+          key: ${{ steps.meta.outputs.deps-key }}
+
+      - uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: "~4.3.0"
+
+      - name: Install tools
+        run: |
+          brew install automake texinfo libtool
+          echo "SDKROOT=$(xcrun --sdk macosx --show-sdk-path)" >> "$GITHUB_ENV"   # GMP/MPFR configure needs it
+
+      - name: Free disk space
+        run: |
+          df -h /
+          sudo find /Applications -maxdepth 1 -type d -name "Xcode_*.app" ! -name "Xcode_15.4.app" -exec rm -rf {} +
+          sudo rm -rf ~/Library/Developer/CoreSimulator/Caches/*
+          df -h /
+
+      - name: Build deps
+        if: steps.deps-cache.outputs.cache-hit != 'true'
+        run: |
+          ./build_release_macos.sh -d -x -a arm64 -t 10.15
+          # keep only the installed deps, as upstream does
+          (cd deps/build/arm64 && find . -mindepth 1 -maxdepth 1 ! -name 'OrcaSlicer_dep' -exec rm -rf {} +)
+
+      - name: Save deps cache
+        if: steps.deps-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: ${{ github.workspace }}/deps/build/arm64
+          key: ${{ steps.meta.outputs.deps-key }}
+
+      - name: Build DiscusSlicer
+        run: ./build_release_macos.sh -s -x -a arm64 -t 10.15
+
+      - name: Package
+        id: pack
+        run: |
+          # build_release_macos.sh already replaced the Resources symlink with a real copy.
+          mkdir -p dist
+          ditto build/arm64/OrcaSlicer/OrcaSlicer.app dist/DiscusSlicer.app
+          codesign --force --deep --sign - dist/DiscusSlicer.app
+          plist=dist/DiscusSlicer.app/Contents/Info.plist
+          echo "Bundle: $(defaults read "$PWD/$plist" CFBundleIdentifier) $(defaults read "$PWD/$plist" CFBundleShortVersionString)"
+          zip="dist/${{ steps.meta.outputs.name }}.zip"
+          ditto -c -k --keepParent dist/DiscusSlicer.app "$zip"
+          echo "zip=$zip" >> "$GITHUB_OUTPUT"
+          ls -lh "$zip"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.meta.outputs.name }}
+          path: ${{ steps.pack.outputs.zip }}
+          compression-level: 0   # already a zip
+
+      - name: Release discus-${{ steps.meta.outputs.version }} (first build of a version only)
+        if: github.ref == 'refs/heads/discus'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: discus-${{ steps.meta.outputs.version }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "$TAG already released; this build is only an artifact."
+          else
+            gh release create "$TAG" "${{ steps.pack.outputs.zip }}" --target "$GITHUB_SHA" \
+              --title "DiscusSlicer ${{ steps.meta.outputs.version }}" \
+              --notes "macOS arm64, unsigned. Install with tools/discus-install.sh --version ${{ steps.meta.outputs.version }}."
+          fi
