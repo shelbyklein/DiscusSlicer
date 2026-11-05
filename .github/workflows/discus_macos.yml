@@ -30,7 +30,7 @@ permissions:
 jobs:
   build:
     name: Build DiscusSlicer (macOS arm64)
-    runs-on: macos-14
+    runs-on: macos-15   # Apple Silicon; GitHub retired the macos-14 image (Nov 2026)
     timeout-minutes: 360
     env:
       ARCH: arm64
