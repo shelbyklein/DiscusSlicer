@@ -14993,18 +14993,17 @@ void Plater::send_to_printer(bool isall)
 }
 
 #ifdef DISCUS_SLICER
-// Writes the same file as "Export plate sliced file" to a temporary path and uploads it to Spoolside.
+// Adds the sliced plate (or every sliced plate) to the Spoolside print library under a name chosen in a dialog.
+// Each plate is written like "Export plate sliced file" and uploaded as its own single-plate file: Spoolside would
+// split a multi-plate file itself and name the parts after their objects, not after the chosen name.
 void Plater::send_to_spoolside(int plate_idx)
 {
     if (p->model.objects.empty())
         return;
-
-    fs::path name;
     try {
         unsigned int state = this->p->update_restart_background_process(false, false);
         if (state & priv::UPDATE_BACKGROUND_PROCESS_INVALID)
             return;
-        name = fs::path(this->p->background_process.output_filepath_for_project(into_path(this->p->get_project_filename(".3mf")))).filename();
     } catch (const Slic3r::PlaceholderParserError& ex) {
         show_error(this, ex.what(), true);
         return;
@@ -15012,17 +15011,53 @@ void Plater::send_to_spoolside(int plate_idx)
         show_error(this, ex.what(), false);
         return;
     }
-    name.replace_extension(".gcode.3mf");
 
-    const int export_plate_idx = plate_idx == PLATE_CURRENT_IDX ? get_partplate_list().get_curr_plate_index() : plate_idx;
-    const fs::path temp_file   = fs::temp_directory_path() / fs::unique_path("discus-%%%%-%%%%.gcode.3mf");
-    if (export_3mf(temp_file, SaveStrategy::Silence | SaveStrategy::SplitModel | SaveStrategy::WithGcode | SaveStrategy::SkipModel, export_plate_idx) < 0) {
-        show_error(this, _L("Could not write the sliced file."), false);
-    } else {
-        spoolside_upload(this, temp_file, name.string());
+    PartPlateList& plates = get_partplate_list();
+    std::vector<int> indices;
+    if (plate_idx == PLATE_ALL_IDX) {
+        for (int i = 0; i < plates.get_plate_count(); ++i)
+            if (plates.get_plate(i)->is_slice_result_ready_for_export())
+                indices.push_back(i);
+    } else
+        indices.push_back(plate_idx == PLATE_CURRENT_IDX ? plates.get_curr_plate_index() : plate_idx);
+    if (indices.empty()) {
+        show_error(this, _L("There are no sliced plates to add."), false);
+        return;
     }
-    boost::system::error_code ec;
-    fs::remove(temp_file, ec);
+
+    auto plate_name = [&plates](int i) { return from_u8(plates.get_plate(i)->get_plate_name()).Trim().Trim(false); };
+    wxString name = get_project_name();
+    if (name == _L("Untitled") || name.empty())
+        name = from_u8(fs::path(p->model.objects.front()->name).stem().string());
+    if (plate_idx != PLATE_ALL_IDX && !plate_name(indices.front()).empty())
+        name += wxString::FromUTF8(" \xE2\x80\x93 ") + plate_name(indices.front());
+
+    std::string scope;
+    if (!spoolside_add_dialog(this, int(indices.size()), name, scope))
+        return;
+
+    std::vector<SpoolsidePrint> prints;
+    bool written = true;
+    for (int i : indices) {
+        wxString entry = name;
+        if (indices.size() > 1) {
+            const wxString plate = plate_name(i);
+            entry += wxString::FromUTF8(" \xE2\x80\x93 ") + (plate.empty() ? wxString::Format(_L("Plate %d"), i + 1) : plate);
+        }
+        const fs::path file = fs::temp_directory_path() / fs::unique_path("discus-%%%%-%%%%.gcode.3mf");
+        prints.push_back({file, into_u8(entry)});
+        if (export_3mf(file, SaveStrategy::Silence | SaveStrategy::SplitModel | SaveStrategy::WithGcode | SaveStrategy::SkipModel, i) < 0) {
+            show_error(this, _L("Could not write the sliced file."), false);
+            written = false;
+            break;
+        }
+    }
+    if (written)
+        spoolside_upload(this, prints, scope);
+    for (const SpoolsidePrint& print : prints) {
+        boost::system::error_code ec;
+        fs::remove(print.file, ec);
+    }
 }
 #endif
 

@@ -15,10 +15,19 @@ which defines the `DISCUS_SLICER` macro. Search for `DISCUS_SLICER` to find ever
   OrcaSlicer then runs exactly as it does for users who never installed the plug-in.
 - **No Device tab for Bambu printers.** `PresetBundle::use_bbl_device_tab()` is false, so Bambu printers get the web view
   that other printers use, pointed at Spoolside's printers page. No camera, MQTT, cloud login or direct printer sending.
-- **Print / Send hands off to Spoolside.** For Bambu printers, Print plate, Print all, Send and Send all write the same
-  `.gcode.3mf` as "Export plate sliced file", upload it to Spoolside's print library (`POST /api/library`), and open the
-  print in the browser, where Spoolside starts it (`src/slic3r/GUI/SpoolsideUpload.cpp`, `Plater::send_to_spoolside`).
-  Server URL, library (PlayCase or Personal) and API key are under Preferences > Online > Spoolside. The key is kept in
+- **Print / Send adds the plate to the Spoolside library.** The Spoolside library is a curated set of finished prints, and
+  Spoolside decides which printer runs them. For Bambu printers the print button reads "Add to library" / "Add all to
+  library" (tooltip: "Add to Spoolside library" / "Add all plates to Spoolside library"); the duplicate Send / Send all
+  entries are hidden. It asks for the **library name** (default: the project name, plus the plate name if the plate has
+  one; the first object's name for an untitled project) and the **library** (PlayCase or Personal, default from
+  Preferences), writes the same `.gcode.3mf` as "Export plate sliced file" and uploads it to `POST /api/library`
+  (`src/slic3r/GUI/SpoolsideUpload.cpp`, `Plater::send_to_spoolside`). Spoolside names the entry after the
+  `x-file-name` header minus `.gcode.3mf`, so the file is sent as `<name>.gcode.3mf`; uploading a name that already
+  exists in that library updates the entry and keeps its linked assets and quantities. "Add all" uploads each sliced plate
+  as its own file named `<name> – <plate name>` (or `– Plate N`), because Spoolside would otherwise split a multi-plate
+  file and name the parts after their objects. Afterwards a confirmation says what was added or updated, with an
+  "Open in Spoolside" button (the Sliced prints page, or Personal); nothing opens on its own.
+  Server URL, default library and API key are under Preferences > Online > Spoolside. The key is kept in
   the macOS Keychain (service `DiscusSlicer/Spoolside`). Keys are made by a script inside Spoolside's container on the Beelink:
   ```sh
   ssh beelink 'cd /srv/projects/spoolside/deploy && docker compose -f compose.yaml -f tunnel-compose.yaml exec -T app node server/apikey.mjs create discusslicer'
@@ -26,8 +35,7 @@ which defines the `DISCUS_SLICER` macro. Search for `DISCUS_SLICER` to find ever
   Use `revoke <name>` or `list` in place of `create <name>` to revoke or list keys. DiscusSlicer turns off curl's verbose
   output, so request headers (and the key) never reach stderr or the logs.
 - **No OrcaSlicer prompts.** No "new version of OrcaSlicer" prompt at launch, no network plug-in page in the setup guide,
-  and no `orcaslicer://` URL scheme (those links keep going to stock OrcaSlicer). For Bambu printers the print button
-  reads "Send to Spoolside" / "Send all to Spoolside"; the duplicate Send / Send all entries are hidden.
+  and no `orcaslicer://` URL scheme (those links keep going to stock OrcaSlicer).
 - **Separate app.** Bundle id `com.shelbyklein.DiscusSlicer`, bundle name DiscusSlicer, and data folder
   `~/Library/Application Support/DiscusSlicer`, so it never reads or changes stock OrcaSlicer's config.
   `SLIC3R_APP_KEY` stays `OrcaSlicer` on purpose: 3MF metadata, G-code headers and translations depend on it.

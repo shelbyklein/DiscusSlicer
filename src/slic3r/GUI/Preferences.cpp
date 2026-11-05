@@ -1897,7 +1897,7 @@ void PreferencesDialog::create_items()
 #ifdef DISCUS_SLICER
     //// ONLINE > Spoolside (replaces the network plug-in settings)
     g_sizer->Add(create_item_title(_L("Spoolside")), 1, wxEXPAND);
-    g_sizer->Add(create_item_combobox(_L("Spoolside library"), _L("The print library that receives sliced plates."), "spoolside_library",
+    g_sizer->Add(create_item_combobox(_L("Spoolside library"), _L("The library preselected when you add a print to Spoolside."), "spoolside_library",
                                       {_L("PlayCase"), _L("Personal")}, std::vector<std::string>{"playcase", "personal"}));
     g_sizer->Add(create_item_button(_L("Spoolside server and API key"), _L("Set up"), "", _L("The API key is stored in the system keychain."),
                                     [this]() { show_spoolside_settings(this); }));

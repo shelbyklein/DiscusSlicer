@@ -256,12 +256,12 @@ public:
 #endif // __APPLE__
 
 // Load the icon either from the exe, or from the ico file.
-// DiscusSlicer: Bambu printers' Print/Send buttons upload to Spoolside (Plater::send_to_spoolside).
+// DiscusSlicer: Bambu printers' Print/Send buttons add the plate to the Spoolside library (Plater::send_to_spoolside).
 static wxString print_plate_label()
 {
 #ifdef DISCUS_SLICER
     if (wxGetApp().preset_bundle && wxGetApp().preset_bundle->use_bbl_network())
-        return _L("Send to Spoolside");
+        return _L("Add to library");
 #endif
     return _L("Print plate");
 }
@@ -270,9 +270,21 @@ static wxString print_all_label()
 {
 #ifdef DISCUS_SLICER
     if (wxGetApp().preset_bundle && wxGetApp().preset_bundle->use_bbl_network())
-        return _L("Send all to Spoolside");
+        return _L("Add all to library");
 #endif
     return _L("Print all");
+}
+
+// Full text of the shortened Spoolside labels, for the tooltip.
+static wxString print_tooltip(const wxString &label)
+{
+#ifdef DISCUS_SLICER
+    if (label == _L("Add to library"))
+        return _L("Add to Spoolside library");
+    if (label == _L("Add all to library"))
+        return _L("Add all plates to Spoolside library");
+#endif
+    return {};
 }
 
 static wxIcon main_frame_icon(GUI_App::EAppMode app_mode)
@@ -1869,6 +1881,12 @@ wxBoxSizer* MainFrame::create_side_tools()
     m_slice_btn = new SideButton(slice_panel, _L("Slice plate"), "");
     m_slice_option_btn = new SideButton(slice_panel, "", "sidebutton_dropdown", 0, 14);
     m_print_btn = new SideButton(print_panel, print_plate_label(), "");
+#ifdef DISCUS_SLICER
+    m_print_btn->Bind(wxEVT_ENTER_WINDOW, [this](wxMouseEvent &e) {
+        m_print_btn->SetToolTip(print_tooltip(m_print_btn->GetLabel()));
+        e.Skip();
+    });
+#endif
     m_print_option_btn = new SideButton(print_panel, "", "sidebutton_dropdown", 0, 14);
 
     auto slice_sizer = new wxBoxSizer(wxHORIZONTAL);
@@ -2089,6 +2107,7 @@ wxBoxSizer* MainFrame::create_side_tools()
                 //Orca Slicer Buttons
                 SideButton* print_plate_btn = new SideButton(p, print_plate_label(), "");
                 print_plate_btn->SetCornerRadius(0);
+                print_plate_btn->SetToolTip(print_tooltip(print_plate_label())); // DiscusSlicer
 
                 SideButton* send_to_printer_btn = new SideButton(p, _L("Send"), "");
                 send_to_printer_btn->SetCornerRadius(0);
@@ -2111,6 +2130,7 @@ wxBoxSizer* MainFrame::create_side_tools()
 
                 SideButton* print_all_btn = new SideButton(p, print_all_label(), "");
                 print_all_btn->SetCornerRadius(0);
+                print_all_btn->SetToolTip(print_tooltip(print_all_label())); // DiscusSlicer
                 print_all_btn->Bind(wxEVT_BUTTON, [this, p](wxCommandEvent&) {
                     m_print_btn->SetLabel(print_all_label());
                     m_print_select = ePrintAll;
