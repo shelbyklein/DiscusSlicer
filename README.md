@@ -45,6 +45,11 @@ which defines the `DISCUS_SLICER` macro. Search for `DISCUS_SLICER` to find ever
   library, so a print that didn't start can be started from Spoolside later. The last printer is kept in the app config
   (`spoolside_printer`).
 
+  **Test print.** Choosing *Library: None (test print, not saved)* sends only the plate, straight to the chosen printer,
+  with `POST /api/printers/:id/print-file` (raw .gcode.3mf body; headers `x-file-name` and `x-print` = URI-encoded JSON
+  `{useAms, amsMapping, bedLevelling, bedClear}`). Spoolside runs the same plate, AMS and camera bed checks, keeps the
+  file only while sending it, and adds nothing to the library; no models are uploaded or linked.
+
   **STL coordinates.** The STL is the object as designed, not as placed: only model parts are merged (no modifiers,
   negative volumes or support blockers), and the plate position, rotation and scale of the instance are left out.
   Each part loaded from a file goes back to where it sat in that file (`ModelVolume::source.mesh_offset`, the centre

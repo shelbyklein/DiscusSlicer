@@ -49,12 +49,14 @@ struct SpoolsideFilament
 // Asks for the library entry name (prefilled with `name`), the library ("playcase" or "personal", prefilled from
 // Preferences), per object whether to update an existing Spoolside asset, add a new one, or leave it out, and
 // optionally a printer to start the plate on, with the spool each of the plate's `filaments` is fed from.
+// An empty `scope` is a test print: nothing is added to the library and a printer is required.
 // Returns false if cancelled.
 bool spoolside_add_dialog(wxWindow *parent, wxString &name, std::string &scope, std::vector<SpoolsideAsset> &assets,
                           const std::vector<SpoolsideFilament> &filaments, SpoolsidePrint &print);
 
 // Uploads the chosen assets, then the plate to the Spoolside library `scope` as `name`, then links the plate to
-// those assets, then (if `print.printer` is set) starts it on that printer through Spoolside. Shows progress and
+// those assets, then (if `print.printer` is set) starts it on that printer through Spoolside. With an empty `scope`
+// (a test print) only the plate is sent, straight to the printer, and Spoolside doesn't keep it. Shows progress and
 // errors, then confirms what was added, updated or started, with an "Open in Spoolside" button.
 void spoolside_upload(wxWindow *parent, const boost::filesystem::path &plate_file, const std::string &name,
                       const std::string &scope, const std::vector<SpoolsideAsset> &assets, const SpoolsidePrint &print);

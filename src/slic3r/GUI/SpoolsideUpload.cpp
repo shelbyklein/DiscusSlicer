@@ -341,6 +341,7 @@ public:
         m_library = new ComboBox(this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxSize(field_width, -1), 0, nullptr, wxCB_READONLY);
         m_library->Append(library_label("playcase"));
         m_library->Append(library_label("personal"));
+        m_library->Append(_L("None (test print, not saved)"));
         m_library->SetSelection(scope == "personal" ? 1 : 0);
 
         grid->Add(label(this, _L("Library name"), Label::Body_14), 0, wxALIGN_CENTER_VERTICAL);
@@ -370,7 +371,8 @@ public:
         main->Add(grid, 0, wxEXPAND | wxALL, FromDIP(20));
 
         if (!m_objects.empty()) {
-            main->Add(label(this, _L("Models on this plate"), Label::Head_14), 0, wxLEFT | wxRIGHT, FromDIP(20));
+            m_models_label = label(this, _L("Models on this plate"), Label::Head_14);
+            main->Add(m_models_label, 0, wxLEFT | wxRIGHT, FromDIP(20));
             m_list = new wxScrolledWindow(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxVSCROLL);
             m_list->SetBackgroundColour(*wxWHITE);
             m_list->SetScrollRate(0, FromDIP(10));
@@ -387,6 +389,10 @@ public:
         m_add = add;
         add->Bind(wxEVT_BUTTON, [this](wxCommandEvent &) { finish(); });
         m_printer->Bind(wxEVT_COMBOBOX, [this](wxCommandEvent &) {
+            build_spools();
+            relayout();
+        });
+        m_library->Bind(wxEVT_COMBOBOX, [this](wxCommandEvent &) {
             build_spools();
             relayout();
         });
@@ -409,7 +415,8 @@ public:
     }
 
     wxString                           get_name() const { return wxString(m_name->GetTextCtrl()->GetValue()).Trim().Trim(false); }
-    std::string                        get_scope() const { return m_library->GetSelection() == 1 ? "personal" : "playcase"; }
+    // "" for a test print, which isn't added to the library.
+    std::string                        get_scope() const { return test_print() ? "" : m_library->GetSelection() == 1 ? "personal" : "playcase"; }
     const std::vector<SpoolsideAsset> &get_assets() const { return m_objects; }
     const SpoolsidePrint              &get_print() const { return m_print; }
 
@@ -417,6 +424,8 @@ protected:
     void on_dpi_changed(const wxRect &) override { relayout(); }
 
 private:
+    bool test_print() const { return m_library->GetSelection() == 2; }
+
     const json *chosen_machine() const
     {
         const int sel = m_printer->GetSelection();
@@ -452,7 +461,7 @@ private:
                 m_spools->GetSizer()->Add(new wxStaticText(m_spools, wxID_ANY, _L("No filament is loaded on this printer.")), 0);
         }
         m_spools->Show(machine != nullptr);
-        m_add->SetLabel(machine ? _L("Add and print") : _L("Add"));
+        m_add->SetLabel(test_print() ? _L("Print") : machine ? _L("Add and print") : _L("Add"));
     }
 
     void add_row(wxFlexGridSizer *rows, const std::string &object, int width)
@@ -535,6 +544,11 @@ private:
 
     void relayout()
     {
+        // A test print sends only the plate: no library entry, so no models to upload or link.
+        if (m_models_label)
+            m_models_label->Show(!test_print());
+        if (m_list)
+            m_list->Show(!test_print());
         for (Row &row : m_rows) {
             const int action = row.action->GetSelection();
             const int asset  = row.asset->GetSelection();
@@ -558,8 +572,12 @@ private:
     {
         if (get_name().empty())
             return;
+        if (test_print() && !chosen_machine()) {
+            show_error(this, _L("Choose a printer under Print on for a test print."));
+            return;
+        }
         std::set<std::string> ids, sources;
-        for (size_t i = 0; i < m_rows.size(); ++i) {
+        for (size_t i = 0; i < m_rows.size() && !test_print(); ++i) {
             const Row      &row    = m_rows[i];
             SpoolsideAsset &out    = m_objects[i];
             const wxString  object = from_u8(out.object);
@@ -643,6 +661,7 @@ private:
 
     TextInput                  *m_name;
     ComboBox                   *m_library;
+    wxStaticText               *m_models_label = nullptr;
     ComboBox                   *m_printer;
     wxPanel                    *m_spools;
     Button                     *m_add = nullptr;
@@ -738,6 +757,28 @@ Reply start_print(wxWindow *parent, const std::string &key, const std::string &e
     return perform_with_progress(progress, http, key, message, 0, 100, nullptr);
 }
 
+// A test print: sends `plate_file` straight to `print.printer` through Spoolside, which starts it without adding it
+// to the library (it keeps the file only while sending). Same bed check as start_print(); the plate is the file's only one.
+Reply start_test_print(wxWindow *parent, const std::string &key, const boost::filesystem::path &plate_file, const std::string &name,
+                       const SpoolsidePrint &print, bool bed_clear)
+{
+    wxProgressDialog progress(_L("Test print on Spoolside"), wxString::Format(_L("Starting on %s"), from_u8(print.printer_name)), 100, parent,
+                              wxPD_APP_MODAL | wxPD_AUTO_HIDE);
+    auto http = Http::post(server_url() + "/api/printers/" + Http::url_encode(print.printer) + "/print-file");
+    http.timeout_max(600)
+        .header("Content-Type", "application/octet-stream")
+        .header("x-file-name", Http::url_encode(name + ".gcode.3mf"))
+        .header("x-print", Http::url_encode(json{{"useAms", !print.external},
+                                                  {"amsMapping", print.slots},
+                                                  {"bedLevelling", true},
+                                                  {"bedClear", bed_clear}}
+                                                 .dump()))
+        .set_post_body(plate_file);
+    const wxString message = bed_clear ? wxString::Format(_L("Sending to %s"), from_u8(print.printer_name))
+                                       : wxString::Format(_L("Checking the bed and sending to %s"), from_u8(print.printer_name));
+    return perform_with_progress(progress, http, key, message, 0, 100, nullptr);
+}
+
 bool bed_refused(const Reply &reply)
 {
     try {
@@ -768,6 +809,44 @@ void spoolside_upload(wxWindow *parent, const boost::filesystem::path &plate_fil
     const std::string key = api_key(parent);
     if (key.empty())
         return;
+
+    // A test print: only the plate, straight to the printer, nothing kept in the library.
+    if (scope.empty()) {
+        boost::system::error_code ec;
+        const uintmax_t           size = boost::filesystem::file_size(plate_file, ec);
+        if (ec || size == 0 || size > MAX_UPLOAD_SIZE) {
+            show_error(parent, ec || size == 0 ? wxString::Format(_L("\"%s\" could not be written."), from_u8(name))
+                                               : wxString::Format(_L("\"%s\" is larger than Spoolside's %d MB upload limit."), from_u8(name), 95));
+            return;
+        }
+        Reply reply = start_test_print(parent, key, plate_file, name, print, false);
+        if (bed_refused(reply)) {
+            MessageDialog ask(parent,
+                              wxString::Format(_L("%s: %s\n\nIf the bed is clear, the print can start anyway."), from_u8(print.printer_name), reply.reason()),
+                              _L("Test print on Spoolside"), wxYES_NO | wxICON_WARNING);
+            ask.SetButtonLabel(wxID_YES, _L("Bed is clear, print"));
+            ask.SetButtonLabel(wxID_NO, _L("Don't print"), true);
+            if (ask.ShowModal() != wxID_YES)
+                return;
+            reply = start_test_print(parent, key, plate_file, name, print, true);
+        }
+        if (reply.status == 401) {
+            offer_new_key(parent, _L("Test print on Spoolside"));
+            return;
+        }
+        if (!reply.ok()) {
+            BOOST_LOG_TRIVIAL(error) << "Spoolside test print failed: HTTP " << reply.status << ": " << into_u8(reply.reason());
+            show_error(parent, wxString::Format(_L("Not printed on %s: %s"), from_u8(print.printer_name), reply.reason()));
+            return;
+        }
+        MessageDialog dlg(parent, started_line(print) + "\n\n" + _L("It's a test print, so it wasn't added to the library."), _L("Spoolside"),
+                          wxYES_NO | wxICON_INFORMATION);
+        dlg.SetButtonLabel(wxID_YES, _L("Open in Spoolside"));
+        dlg.SetButtonLabel(wxID_NO, _L("OK"), true);
+        if (dlg.ShowModal() == wxID_YES)
+            wxLaunchDefaultBrowser(from_u8(server_url() + "/printers"));
+        return;
+    }
 
     std::vector<const SpoolsideAsset *> uploads;
     for (const SpoolsideAsset &a : assets)
