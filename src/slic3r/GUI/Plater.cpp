@@ -10858,11 +10858,19 @@ void Plater::priv::update_title_dirty_status()
     else
         title = m_project_name;
 
+#ifdef DISCUS_SLICER
+    // DiscusSlicer: name the app in the title so it is distinguishable from stock OrcaSlicer.
+    title += " - DiscusSlicer";
+#endif
 #ifdef __APPLE__
     wxGetApp().mainframe->SetTitle(title);
     wxGetApp().mainframe->update_title_colour_after_set_title();
 #else
+#ifdef DISCUS_SLICER
+    wxGetApp().mainframe->SetTitle(title);
+#else
     wxGetApp().mainframe->SetTitle(title + " - OrcaSlicer");
+#endif
     wxGetApp().mainframe->topbar()->SetTitle(title);
 #endif    
 }

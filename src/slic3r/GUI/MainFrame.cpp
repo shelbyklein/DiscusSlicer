@@ -82,6 +82,16 @@
 namespace Slic3r {
 namespace GUI {
 
+#ifdef DISCUS_SLICER
+// DiscusSlicer: user-visible name and icons, so it can't be mistaken for stock OrcaSlicer.
+// SLIC3R_APP_NAME stays "OrcaSlicer" because 3MF metadata and G-code headers depend on it.
+#define APP_DISPLAY_NAME "DiscusSlicer"
+#define APP_ICON_128 "DiscusSlicer_128px.png"
+#else
+#define APP_DISPLAY_NAME SLIC3R_APP_FULL_NAME
+#define APP_ICON_128 "OrcaSlicer_128px.png"
+#endif
+
 wxDEFINE_EVENT(EVT_SELECT_TAB, wxCommandEvent);
 wxDEFINE_EVENT(EVT_HTTP_ERROR, wxCommandEvent);
 wxDEFINE_EVENT(EVT_USER_LOGIN, wxCommandEvent);
@@ -286,7 +296,7 @@ static wxIcon main_frame_icon(GUI_App::EAppMode app_mode)
     }
     return wxIcon(path, wxBITMAP_TYPE_ICO);
 #else // _WIN32
-    return wxIcon(Slic3r::var("OrcaSlicer_128px.png"), wxBITMAP_TYPE_PNG);
+    return wxIcon(Slic3r::var(APP_ICON_128), wxBITMAP_TYPE_PNG);
 #endif // _WIN32
 }
 
@@ -413,7 +423,11 @@ DPIFrame(NULL, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, BORDERLESS_FRAME_
     default:
     case GUI_App::EAppMode::Editor:
         m_taskbar_icon = std::make_unique<OrcaSlicerTaskBarIcon>(wxTBI_DOCK);
+#ifdef DISCUS_SLICER
+        m_taskbar_icon->SetIcon(wxIcon(Slic3r::var("DiscusSlicer-mac_256px.png"), wxBITMAP_TYPE_PNG), APP_DISPLAY_NAME);
+#else
         m_taskbar_icon->SetIcon(wxIcon(Slic3r::var("OrcaSlicer-mac_256px.ico"), wxBITMAP_TYPE_ICO), "OrcaSlicer");
+#endif
         break;
     case GUI_App::EAppMode::GCodeViewer:
         break;
@@ -422,6 +436,10 @@ DPIFrame(NULL, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, BORDERLESS_FRAME_
 
     // Load the icon either from the exe, or from the ico file.
     SetIcon(main_frame_icon(wxGetApp().get_app_mode()));
+#ifdef DISCUS_SLICER
+    // Shown until a project is named; Plater::priv::update_title_dirty_status() takes over after that.
+    SetTitle(APP_DISPLAY_NAME);
+#endif
 
     // initialize tabpanel and menubar
     init_tabpanel();
@@ -2626,7 +2644,7 @@ static wxMenu* generate_help_menu()
 
     // About
 #ifndef __APPLE__
-    wxString about_title = wxString::Format(_L("&About %s"), SLIC3R_APP_FULL_NAME);
+    wxString about_title = wxString::Format(_L("&About %s"), APP_DISPLAY_NAME);
     append_menu_item(helpMenu, wxID_ANY, about_title, about_title,
             [](wxCommandEvent&) { Slic3r::GUI::about(); });
 #endif
@@ -3256,7 +3274,7 @@ void MainFrame::init_menubar_as_editor()
 //    });
 
 #ifdef __APPLE__
-    wxString about_title = wxString::Format(_L("&About %s"), SLIC3R_APP_FULL_NAME);
+    wxString about_title = wxString::Format(_L("&About %s"), APP_DISPLAY_NAME);
     //auto about_item = new wxMenuItem(parent_menu, OrcaSlicerMenuAbout + bambu_studio_id_base, about_title, "");
         //parent_menu->Bind(wxEVT_MENU, [this, bambu_studio_id_base](wxEvent& event) {
         //    switch (event.GetId() - bambu_studio_id_base) {
@@ -3643,7 +3661,7 @@ void MainFrame::init_menubar_as_gcodeviewer()
             [](wxCommandEvent&) { start_new_slicer(); }, "", nullptr,
             []() {return true; }, this);
         fileMenu->AppendSeparator();
-        append_menu_item(fileMenu, wxID_EXIT, _L("&Quit"), wxString::Format(_L("Quit %s"), SLIC3R_APP_NAME),
+        append_menu_item(fileMenu, wxID_EXIT, _L("&Quit"), wxString::Format(_L("Quit %s"), APP_DISPLAY_NAME),
             [this](wxCommandEvent&) { Close(false); });
     }
 
@@ -4407,7 +4425,7 @@ SettingsDialog::SettingsDialog(MainFrame* mainframe)
         SetIcon(wxIcon(szExeFileName, wxBITMAP_TYPE_ICO));
     }
 #else
-    SetIcon(wxIcon(var("OrcaSlicer_128px.png"), wxBITMAP_TYPE_PNG));
+    SetIcon(wxIcon(var(APP_ICON_128), wxBITMAP_TYPE_PNG));
 #endif // _WIN32
 
     //just hide the Frame on closing
