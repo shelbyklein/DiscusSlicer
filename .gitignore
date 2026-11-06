@@ -49,3 +49,6 @@ internal_docs/
 # Python bytecode
 __pycache__/
 *.pyc
+
+# DiscusSlicer: design concepts and previews (not part of the build)
+output/
